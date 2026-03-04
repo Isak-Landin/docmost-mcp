@@ -8,6 +8,7 @@ from psycopg2.extras import RealDictCursor
 
 from utils.schema_db_validation_management import validate_dict, refactor_content
 import logging
+from errors import err, ok, INVALID_INPUT, UNEXPECTED_ERROR, NOT_FOUND, DB_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def get_content(_page_id: str) -> tuple[bool, dict[Any, Any]]:
             }
 
     sql = """
-        Select id, text_content, space_id
+        SELECT id, space_id, title, parent_page_id, creator_id, created_at, updated_at, text_content
         FROM public.pages
         WHERE id = %s
         AND deleted_at IS NULL
@@ -170,19 +171,10 @@ def get_content(_page_id: str) -> tuple[bool, dict[Any, Any]]:
                 __space_id = str(row["space_id"])
                 __page_id = str(row["id"])
 
-                sql_meta = """
-                    SELECT title, parent_page_id, creator_id, created_at, updated_at
-                    FROM public.pages
-                    WHERE id = %s
-                    AND deleted_at IS NULL
-                """
-                cur.execute(sql_meta, (params,))
-                __meta = cur.fetchone()
-
                 output = {
                     __space_id: {
                         __page_id: {
-                            key: val for key, val in __meta.items()
+
                         }
                     }
                 }
