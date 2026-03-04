@@ -9,8 +9,8 @@ from logging_config import setup_logging
 setup_logging(_service="docmost-fetcher")
 
 
-LISTEN_HOST = os.getenv("UI_LISTEN_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.getenv("UI_LISTEN_PORT", "8099"))
+LISTEN_HOST = os.getenv("LISTEN_HOST", "0.0.0.0")
+LISTEN_PORT = int(os.getenv("LISTEN_PORT"))
 
 DOCMOST_FETCHER_API = os.getenv("DOCMOST_FETCHER_API", "/docmost/api")
 
