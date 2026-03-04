@@ -9,7 +9,7 @@ from typing import Any
 
 
 
-from errors import INVALID_INPUT, NOT_FOUND, DB_ERROR, UNEXPECTED_ERROR, ok, err
+from errors import INVALID_INPUT, INVALID_SCHEMA, NOT_FOUND, DB_ERROR, UNEXPECTED_ERROR, ok, err
 
 logger = logging.getLogger(__name__)
 
@@ -63,32 +63,37 @@ def _validate_against_schema(refactored_envelope: dict, schema_sot: dict):
     if not isinstance(refactored_envelope, dict):
         return err(INVALID_INPUT, message="refactored_envelope must be a dict", value=str(refactored_envelope))
 
-    schema_rel = recursive_relational_list_for_sot(schema_sot)
+    schema_rel = recursive_relational_list_sot(schema_sot)
 
     if not isinstance(schema_rel, list):
         return err(UNEXPECTED_ERROR, message="During runtime, schema_rel list was not a list. This is a logical error", value=str(schema_rel))
 
 
-is_levels_verified: list[bool] = []
+def _pairs(level_entry):
+    # level_entry = [key_types_list, value_types_list]
+    ks, vs = level_entry
+    return list(zip(ks, vs))
 
-def recursive_compare_sot_relation_to_envelope(_envelope: dict, _sot_relational_list: list):
-    __depth_envelope = dict_depth(_envelope)
-    __depth_sot = len(_sot_relational_list)
+def compare_relational_lists(envelope_rel_list: list, sot_rel_list: list):
+    if not isinstance(envelope_rel_list, list) or not isinstance(sot_rel_list, list):
+        return err(UNEXPECTED_ERROR, "relational lists must be lists", {"env": type(envelope_rel_list), "sot": type(sot_rel_list)})
 
-    if type(_envelope) != dict or type(_sot_relational_list) != list:
-        return err(
-            UNEXPECTED_ERROR,
-            message="During runtime, envelope dict or sot relational list was not the correct type",
-            value=f"Envelope: {_envelope}" + " " + f"Relational list: {_sot_relational_list}",
-        )
+    if len(envelope_rel_list) != len(sot_rel_list):
+        return err(UNEXPECTED_ERROR, "depth mismatch between envelope and sot", {"env_depth": len(envelope_rel_list), "sot_depth": len(sot_rel_list)})
 
+    for depth, (env_level, sot_level) in enumerate(zip(envelope_rel_list, sot_rel_list)):
+        env_pairs = _pairs(env_level)
+        sot_allowed = set(_pairs(sot_level))
 
-    if __depth_envelope != __depth_sot:
-        return err(
-            UNEXPECTED_ERROR,
-            message="The depth of envelope and sot did not match, this suggest internal logical inconsistency.",
-            value=f"Envelope: {str(_envelope)}" + " " + f"Relational list: {str(_sot_relational_list)}",
-        )
+        for p in env_pairs:
+            if p not in sot_allowed:
+                return err(
+                    INVALID_SCHEMA,
+                    message="envelope does not match schema at depth",
+                    value={"depth": depth, "pair": (p[0], p[1]), "allowed": list(sot_allowed)},
+                )
+
+    return ok(True)
 
 relational_list_envelope = []
 def recursive_relational_list_envelope(_envelope: dict):
@@ -102,7 +107,7 @@ def recursive_relational_list_envelope(_envelope: dict):
     @def convert_value_to_real_type():
         @__value, a value passed in its raw form
     """
-    def convert_key_to_real_type(__key):
+    def convert_key_to_type(__key):
         envelope_key_types = {
             str: [uuid.UUID],
         }
@@ -110,7 +115,7 @@ def recursive_relational_list_envelope(_envelope: dict):
         if not __key:
             return err(
                 UNEXPECTED_ERROR,
-                message="Key in dict cannot be None. During runtime when creating relation list for envelope, None key was found.",
+                message="Key in dict cannot be None. During runCurrently we are creating relational lists vertically - I believe.They are created based on level. Maybe time when creating relation list for envelope, None key was found.",
                 value=str(_envelope)
             )
         if type(__key) == str:
@@ -141,15 +146,23 @@ def recursive_relational_list_envelope(_envelope: dict):
         else:
             return type(__value)
 
-    """
-    Normal recursive functionality begins here. The following contents aim to solve the building of the relational
-    envelope list. The returned list will be used to later be compared with the sot_relational_list.
-    
-    @_envelope - is a parameter passed which corresponds to a prod retrieval of docmost db data, converted into SOT dict
-    format. The format is defined in their corresponding schema files.
-    """
+    level = [[], []]
 
     for k, v in _envelope.items():
+        kt = convert_key_to_type(k)
+        vt = dict if isinstance(v, dict) else convert_value_to_type(v)
+        level[0].append(kt)
+        level[1].append(vt)
+
+    relational_list_envelope.append(level)
+
+    for v in _envelope.values():
+        if isinstance(v, dict):
+            recursive_relational_list_envelope(v)
+
+    return relational_list_envelope
+
+
 
 
 
@@ -189,7 +202,7 @@ def recursive_relational_list_sot(_sot: dict):
 
     for v in _sot.values():
         if isinstance(v, dict):
-            recursive_relational_list_for_sot(v)
+            recursive_relational_list_sot(v)
 
     return relational_list_sot
 

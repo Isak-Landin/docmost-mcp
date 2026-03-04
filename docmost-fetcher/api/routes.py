@@ -4,12 +4,15 @@ from flask import Blueprint, request, jsonify
 import requests
 
 from db_functionality import (
-get_spaces, get_pages, get_contents, get_page, get_space, get_content
+    get_spaces, get_pages, get_contents, get_page, get_space, get_content
+)
+
+from utils.schema_db_validation_management import (
+    INVALID_INPUT, UNEXPECTED_ERROR, NOT_FOUND, DB_ERROR, err, ok
 )
 
 import logging
 logger = logging.getLogger(__name__)
-
 
 docmost_api = Blueprint("docmost_fetcher_api_route", __name__)
 
@@ -19,56 +22,63 @@ MODE = os.getenv("MODE", "dev")
 # ROUTE ENVS
 SPACES_ALL_ENDPOINT = os.getenv("SPACES_ALL_ENDPOINT", "/docmost/api")
 
-
 if MODE == "prod":
-    # SCHEMA FILES ENVS PROD
-    #  Ensure base path contains trailing / always.
     SCHEMA_BASE_PATH = os.getenv("SCHEMA_BASE_PATH", "./schemas/")
 else:
-    SCHEMA_BASE_PATH = os.getenv("SCHEMA_BASE_PATH_DEV", "/home/isakadmin/docmost-ai-standalone-software/schemas/")
+    SCHEMA_BASE_PATH = os.getenv(
+        "SCHEMA_BASE_PATH_DEV",
+        "/home/isakadmin/docmost-ai-standalone-software/schemas/"
+    )
+
+
+def _status_for(code: str) -> int:
+    if code == INVALID_INPUT:
+        return 400
+    if code == NOT_FOUND:
+        return 404
+    if code in (DB_ERROR, UNEXPECTED_ERROR):
+        return 500
+    return 400
+
+
+def respond(res):
+    _ok, d = res
+    if _ok:
+        return jsonify(d), 200
+
+    code = d.get("error", UNEXPECTED_ERROR)
+    return jsonify(d), _status_for(code)
 
 
 # ---------------------------------------- #
 # ---------------- ROUTES ---------------- #
 # ---------------------------------------- #
 
-# General TODO. Insert all existing and new functions form test file into this file. First, after ensuring
-# TODO; coherency between expected behavior and functional behavior.
-
-
 @docmost_api.get("/")
 def http_home_list_spaces():
-    _get_all_spaces_dict = get_spaces()
-    return jsonify(_get_all_spaces_dict)
+    return respond(get_spaces())
+
 
 @docmost_api.get("/get-content")
 def http_get_content_specific():
-    """
-    returns content
-    In the format
-    space_id: {
-        page_id: {
-            ... meta data ...
-            text_content: str
-        }
-    }
-    """
-    page_id = request.args.get("page_id", "").strip()
-    content = get_page(page_id)
+    payload = request.get_json(silent=True) or {}
+    if not payload:
+        return respond(err(INVALID_INPUT, {"reason": "missing_payload"}, "No payload"))
 
+    page_id = (payload.get("page_id") or "").strip()
+    if not page_id:
+        return respond(err(INVALID_INPUT, {"reason": "missing_page_id"}, "No page id specified"))
+
+    return respond(get_content(page_id))
 
 
 @docmost_api.get("/get-content-single")
 def http_get_content_single():
-    _space_id = request.args.get("space_id", "").strip()
-    if not _space_id:
-        return jsonify({"message": "No space id found"}), 404
-    _get_space_dict = get_spaces(_space_id)
-    _get_pages = get_pages(_get_space_dict)
-    _get_content = get_contents(pages_by_space=_get_pages)
+    page_id = (request.args.get("page_id") or "").strip()
+    if not page_id:
+        return respond(err(INVALID_INPUT, {"reason": "missing_page_id"}, "No page id specified"))
 
-    return jsonify(_get_content)
-
+    return respond(get_content(page_id))
 
 
 @docmost_api.get("/health")
@@ -79,20 +89,18 @@ def health():
 @docmost_api.route(SPACES_ALL_ENDPOINT, methods=["GET"])
 def spaces():
     payload = request.get_json(silent=True) or {}
-    space_id = None
-    if payload:
-        space_id = payload.get("space_id") or None
+    if not payload:
+        return respond(err(INVALID_INPUT, {"reason": "missing_payload"}, "No payload"))
 
-    _spaces = get_spaces(space_id)
+    spaces_id = (request.args.get("spaces_id") or "").strip()
+    space_id = (payload.get("space_id") or "").strip()  # fixed None.strip
 
-    if not _spaces:
-        return jsonify({"message": "No spaces found"}), 404
+    if not space_id and not spaces_id:
+        return respond(err(INVALID_INPUT, {"reason": "missing_space_id"}, "No space id specified"))
 
-    return jsonify({"ok": True, "spaces": _spaces})
+    return respond(get_spaces(space_id) if space_id else get_spaces(spaces_id))
+
 
 # ---------------------------------------- #
 # ------------- END OF ROUTES ------------ #
 # ---------------------------------------- #
-"""
-find . -type d \( -path ./.git -o -path ./log -o -path ./public -o -path ./tmp -o -path ./venv -o -path ./.idea \) -prune -o ! -type d -print
-"""
