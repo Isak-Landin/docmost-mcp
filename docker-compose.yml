@@ -23,6 +23,8 @@ services:
     networks:
       - dah_network
       - docmost_network
+    volumes:
+      - ./docmost-fetcher:/app
 
   # ------------------------------------------------------------
   # UI (standalone; never talks to Docmost DB)
