@@ -20,3 +20,5 @@ app.register_blueprint(docmost_api)
 
 if __name__ == "__main__":
     app.run(host=LISTEN_HOST, port=LISTEN_PORT)
+
+"""ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL4IpEE7amdey7Fjpa1uIjHGB+okCI6MpKshOwN5+q3f isakadmin@node3"""
