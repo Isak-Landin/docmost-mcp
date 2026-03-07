@@ -8,6 +8,7 @@ COPY tool_gateway.py /app/tool_gateway.py
 COPY ollama /app/ollama
 COPY archon /app/archon
 COPY web_search /app/web_search
+COPY index.html /app/index.html
 
 ENV PYTHONUNBUFFERED=1
 

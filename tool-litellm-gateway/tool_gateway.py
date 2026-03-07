@@ -138,3 +138,12 @@ def chat(req: ChatRequest):
         "error": "max_tool_loops_reached",
         "message": f"Model exceeded {MAX_TOOL_LOOPS} tool iterations",
     }
+
+
+"""
+DEBUGGING INTERFACE
+"""
+from fastapi.responses import FileResponse
+@app.get("/debug")
+def debug():
+    return FileResponse("index.html")
