@@ -22,7 +22,7 @@ def _empty_tiptap_doc() -> str:
     """Minimal valid Tiptap document required by Docmost to render a page."""
     return json.dumps({
         "type": "doc",
-        "content": [{"type": "paragraph", "attrs": {"id": _gen_slug(12)}}],
+        "content": [{"type": "paragraph", "attrs": {"id": _gen_slug(12)}, "content": []}],
     })
 
 
