@@ -59,5 +59,5 @@ def invalidate_token() -> None:
 
 
 def auth_headers() -> dict[str, str]:
-    """Return the Authorization header dict for use in Docmost REST API calls."""
-    return {"Authorization": f"Bearer {get_token()}"}
+    """Return the Cookie header dict for use in Docmost REST API calls."""
+    return {"Cookie": f"authToken={get_token()}"}
