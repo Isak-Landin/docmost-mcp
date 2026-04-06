@@ -3,8 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from app.db import DocmostConnectionError
-from app.docmost import (
+from app.query.db import DocmostConnectionError
+from app.query.docmost import (
     PageNotFoundError,
     SpaceNotFoundError,
     get_page as fetch_page,

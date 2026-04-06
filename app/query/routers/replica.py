@@ -3,10 +3,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.db import DocmostConnectionError
-from app.docmost import SpaceNotFoundError
+from app.query.db import DocmostConnectionError
+from app.query.docmost import SpaceNotFoundError
 from app.models import ReplicaNameResolutionOut, ReplicaStandardsOut, ReplicaStructureOut
-from app.replica import (
+from app.query.replica import (
     get_replica_standards as fetch_replica_standards,
     get_replica_structure as fetch_replica_structure,
     resolve_replica_directory_name as resolve_directory_name,

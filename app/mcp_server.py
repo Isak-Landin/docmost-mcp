@@ -7,8 +7,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.server import TransportSecuritySettings
 
-from app.db import DocmostConnectionError
-from app.docmost import (
+from app.query.db import DocmostConnectionError
+from app.query.docmost import (
     PageNotFoundError,
     SpaceNotFoundError,
     get_page as fetch_page,
@@ -18,44 +18,59 @@ from app.docmost import (
     list_spaces as fetch_spaces,
 )
 from app.models import (
+    DeletedOut,
+    PageCreateIn,
     PageOut,
+    PageUpdateIn,
     ReplicaNameResolutionOut,
     ReplicaStandardsOut,
     ReplicaStructureOut,
+    SpaceCreateIn,
     SpaceOut,
     SpaceTreeOut,
 )
-from app.replica import (
+from app.write.docmost import create_page as docmost_create_page
+from app.write.docmost import create_space as docmost_create_space
+from app.write.docmost import delete_page as docmost_delete_page
+from app.write.docmost import delete_space as docmost_delete_space
+from app.write.docmost import get_page_markdown
+from app.write.docmost import update_page as docmost_update_page
+from app.query.replica import (
     get_replica_standards as fetch_replica_standards,
     get_replica_structure as fetch_replica_structure,
     resolve_replica_directory_name as resolve_replica_directory_name_impl,
 )
 
 SERVER_INSTRUCTIONS = """
-This server is strictly read-only.
-Never create, update, move, or delete spaces or pages.
-Use this server as the main documentation source for the active project when documentation is relevant.
-Only use the provided Docmost tools to inspect spaces and pages.
-Start with list_spaces when you need to identify the correct space.
-If the user gives a space name rather than a UUID, find the matching space via list_spaces first.
-When you need the page hierarchy of a space, prefer get_space_tree instead of reconstructing it yourself.
-When you need the deterministic local replica layout for a space, use get_replica_structure.
-When you need naming or sync rules for local replica work, use get_replica_standards.
-When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
-Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it, because the remote surface is read-only.
-All local replica directory and file names must not contain spaces. Spaces in page titles or space names are replaced with hyphens when building local paths.
-Use get_replica_structure as the source for the initial local replica layout and for refreshing existing remote-backed replica content.
-Use get_replica_standards together with resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
-Use the returned space_id for list_pages and get_page.
-Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
-Treat text_content as normalized plain text, not authoritative rich formatting.
-If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
-If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
-When local replica files are edited, identify which local replica files changed, identify which remote page each file corresponds to when available, and tell the user to sync those local changes back to remote Docmost manually.
-Use the replica tree mapping and page metadata to relate local files back to remote pages instead of guessing.
-After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
-If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
-If requested data is missing, report that explicitly instead of inferring it.
+This server exposes Docmost spaces and pages for both reading and writing.
+
+## Reading
+Use list_spaces to find the correct space. Use get_space_tree for page hierarchy.
+Use list_pages for a flat page list. Use get_page for a single page with markdown content.
+If the user gives a space name rather than a UUID, resolve it with list_spaces first.
+Pages are always space-scoped — always pass space_id together with page_id.
+
+## Writing
+All write tools authenticate automatically — never call an auth tool first.
+Use create_space to create a new space (slug must be alphanumeric, no dashes).
+Use create_page to create a page. Pass parent_page_id to create nested child pages.
+Use update_page to update an existing page's title and/or content.
+  Prefer update_page over delete+create — Docmost preserves page history on update.
+  Use operation='replace' (default) to overwrite, 'append' or 'prepend' to add content.
+Use delete_page to soft-delete a page (it moves to Docmost trash).
+Use delete_space to permanently delete a space and all its contents.
+All content is markdown in and out. Never pass ProseMirror JSON to write tools.
+
+## Replica management
+Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it.
+All local replica directory and file names must not contain spaces — replace with hyphens.
+Use get_replica_structure for the initial local replica layout.
+Use get_replica_standards and resolve_replica_directory_name for local-only additions.
+When local replica files are edited, identify changed files, map them to remote pages,
+and tell the user those changes still need manual sync back to remote Docmost.
+Treat remote Docmost as potentially stale after local-only edits until manual sync.
+If content looks stale, deprecated, or inconsistent with verified behavior, say so explicitly.
+If requested data is missing, report that explicitly instead of guessing.
 """.strip()
 
 def _transport_security() -> TransportSecuritySettings:
@@ -151,10 +166,179 @@ def list_pages(space_id: UUID) -> list[PageOut]:
 
 @mcp.tool()
 def get_page(space_id: UUID, page_id: UUID) -> PageOut:
-    """Get one Docmost page by UUID within its space. Use list_spaces and list_pages first if you only know names."""
+    """Get one Docmost page by UUID within its space, with content as markdown.
+
+    Use list_spaces and list_pages first if you only know names.
+    Content is fetched via Docmost REST (format=markdown) — not the raw DB blob.
+    """
     try:
         return fetch_page(space_id, page_id)
     except DocmostConnectionError as exc:
         raise ToolError(str(exc)) from exc
     except (PageNotFoundError, SpaceNotFoundError) as exc:
         raise ToolError(str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Write tools — authenticate transparently via DOCMOST_USER_* env vars
+# ---------------------------------------------------------------------------
+
+
+def _map_page_from_rest(data: dict) -> PageOut:
+    from datetime import datetime as _dt
+
+    page = data.get("page", data)
+    return PageOut(
+        id=page["id"],
+        slug_id=page.get("slugId") or page.get("slug_id") or "",
+        title=page.get("title"),
+        icon=page.get("icon"),
+        position=page.get("position"),
+        parent_page_id=page.get("parentPageId") or page.get("parent_page_id"),
+        creator_id=page.get("creatorId") or page.get("creator_id"),
+        last_updated_by_id=page.get("lastUpdatedById") or page.get("last_updated_by_id"),
+        space_id=page.get("spaceId") or page.get("space_id") or "",
+        workspace_id=page.get("workspaceId") or page.get("workspace_id") or "",
+        is_locked=page.get("isLocked") or page.get("is_locked") or False,
+        content=page.get("content"),
+        created_at=page.get("createdAt") or page.get("created_at") or _dt.utcnow(),
+        updated_at=page.get("updatedAt") or page.get("updated_at") or _dt.utcnow(),
+    )
+
+
+def _map_space_from_rest(data: dict) -> SpaceOut:
+    from datetime import datetime as _dt
+
+    return SpaceOut(
+        id=data["id"],
+        name=data.get("name"),
+        description=data.get("description"),
+        slug=data["slug"],
+        visibility=data.get("visibility", "private"),
+        default_role=data.get("defaultRole", "writer"),
+        creator_id=data.get("creatorId"),
+        workspace_id=data["workspaceId"],
+        created_at=data.get("createdAt") or _dt.utcnow(),
+        updated_at=data.get("updatedAt") or _dt.utcnow(),
+    )
+
+
+@mcp.tool()
+def create_space(name: str, slug: str, description: str = "") -> SpaceOut:
+    """Create a new Docmost space.
+
+    Args:
+        name: Display name for the space (2–100 characters).
+        slug: Alphanumeric URL identifier, no spaces or dashes (2–100 chars).
+        description: Optional plain-text description (default empty).
+
+    Authentication is handled automatically.
+    """
+    try:
+        data = docmost_create_space(name=name, slug=slug, description=description or None)
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+    return _map_space_from_rest(data)
+
+
+@mcp.tool()
+def delete_space(space_id: str) -> DeletedOut:
+    """Permanently delete a Docmost space and all its pages.
+
+    This is irreversible. Authentication is handled automatically.
+
+    Args:
+        space_id: UUID of the space to delete.
+    """
+    try:
+        docmost_delete_space(space_id)
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+    return DeletedOut(deleted=True, id=space_id)
+
+
+@mcp.tool()
+def create_page(
+    space_id: str,
+    title: str = "",
+    content: str = "",
+    parent_page_id: str = "",
+) -> PageOut:
+    """Create a new page in a Docmost space.
+
+    Pass parent_page_id to create a nested child page under an existing page.
+    Arbitrarily deep hierarchies are supported.
+    Content is accepted as markdown. Authentication is handled automatically.
+
+    Args:
+        space_id: UUID of the target space.
+        title: Page title (optional).
+        content: Markdown content for the page body (optional).
+        parent_page_id: UUID of the parent page for a child page (optional, leave empty for root).
+    """
+    try:
+        data = docmost_create_page(
+            space_id=space_id,
+            title=title or None,
+            content=content or None,
+            parent_page_id=parent_page_id or None,
+        )
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+
+    page_id = data.get("id") or (data.get("page", {}) or {}).get("id")
+    if not page_id:
+        raise ToolError(f"Docmost create did not return a page id. Response: {data}")
+
+    try:
+        full = get_page_markdown(page_id)
+    except Exception:
+        full = data
+    return _map_page_from_rest(full)
+
+
+@mcp.tool()
+def update_page(
+    page_id: str,
+    title: str = "",
+    content: str = "",
+    operation: str = "replace",
+) -> PageOut:
+    """Update an existing Docmost page's title and/or content.
+
+    Prefer update over delete+create — Docmost preserves page history on update.
+    Content is accepted as markdown. Authentication is handled automatically.
+
+    Args:
+        page_id: UUID of the page to update.
+        title: New title (leave empty to leave unchanged).
+        content: Markdown content (leave empty to leave unchanged).
+        operation: How content is applied: 'replace' (default), 'append', or 'prepend'.
+    """
+    try:
+        docmost_update_page(
+            page_id=page_id,
+            title=title or None,
+            content=content or None,
+            operation=operation or "replace",
+        )
+        full = get_page_markdown(page_id)
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+    return _map_page_from_rest(full)
+
+
+@mcp.tool()
+def delete_page(page_id: str) -> DeletedOut:
+    """Soft-delete a Docmost page (moves it to trash).
+
+    Authentication is handled automatically.
+
+    Args:
+        page_id: UUID of the page to delete.
+    """
+    try:
+        docmost_delete_page(page_id)
+    except Exception as exc:
+        raise ToolError(str(exc)) from exc
+    return DeletedOut(deleted=True, id=page_id)

@@ -4,7 +4,9 @@ import os
 from fastapi import FastAPI
 
 from app.mcp_server import mcp
-from app.routers import health, pages, replica, spaces
+from app.query.routers import health, pages, replica, spaces
+from app.write.routers import pages as write_pages
+from app.write.routers import spaces as write_spaces
 
 
 @asynccontextmanager
@@ -15,15 +17,22 @@ async def app_lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Docmost MCP",
-    description="Read-only REST and MCP service for live Docmost PostgreSQL data. Exposes spaces and pages with normalized text content.",
+    description=(
+        "REST and MCP service for Docmost. "
+        "Exposes spaces and pages via read (direct DB) and write (Docmost REST API) routes."
+    ),
     version="1.0.0",
     lifespan=app_lifespan,
 )
 
 app.include_router(health.router)
 app.include_router(replica.router)
+# Query (read) routes — backed by direct PostgreSQL access
 app.include_router(spaces.router)
 app.include_router(pages.router)
+# Write routes — backed by Docmost REST API
+app.include_router(write_spaces.router)
+app.include_router(write_pages.router)
 # FastMCP already exposes its own /mcp route inside the sub-app.
 app.mount("/", mcp.streamable_http_app())
 

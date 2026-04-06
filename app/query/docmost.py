@@ -5,9 +5,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.db import get_conn
+from app.query.db import get_conn
 from app.models import PageOut, PageTreeNode, SpaceOut, SpaceSummaryOut, SpaceTreeOut
-from app.text_utils import reformat_text
+from app.query.text_utils import reformat_text
 
 
 class SpaceNotFoundError(Exception):
@@ -54,10 +54,23 @@ def _assert_page_in_space(cur, page_id: UUID, space_id: UUID) -> dict[str, Any]:
 
 
 def _format_page(row: dict[str, Any]) -> PageOut:
-    formatted = dict(row)
-    if formatted.get("text_content"):
-        formatted["text_content"] = reformat_text(formatted["text_content"])
-    return PageOut(**formatted)
+    """Map a DB row to PageOut without content (content is fetched via REST)."""
+    return PageOut(
+        id=row["id"],
+        slug_id=row["slug_id"],
+        title=row.get("title"),
+        icon=row.get("icon"),
+        position=row.get("position"),
+        parent_page_id=row.get("parent_page_id"),
+        creator_id=row.get("creator_id"),
+        last_updated_by_id=row.get("last_updated_by_id"),
+        space_id=row["space_id"],
+        workspace_id=row["workspace_id"],
+        is_locked=row.get("is_locked", False),
+        content=None,
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
 
 
 def _page_row_sort_key(row: dict[str, Any]) -> tuple[int, str, datetime]:
@@ -134,7 +147,7 @@ def list_pages(space_id: UUID) -> list[PageOut]:
     sql = """
         SELECT id, slug_id, title, icon, position, parent_page_id, creator_id,
                last_updated_by_id, space_id, workspace_id, is_locked,
-               text_content, created_at, updated_at
+               created_at, updated_at
         FROM public.pages
         WHERE space_id = %s AND deleted_at IS NULL
         ORDER BY created_at ASC
@@ -148,11 +161,35 @@ def list_pages(space_id: UUID) -> list[PageOut]:
 
 
 def get_page(space_id: UUID, page_id: UUID) -> PageOut:
+    """Return a page with its content as markdown, fetched via Docmost REST."""
+    from app.write.docmost import get_page_markdown
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             _assert_space_exists(cur, space_id)
-            row = _assert_page_in_space(cur, page_id, space_id)
-    return _format_page(row)
+            _assert_page_in_space(cur, page_id, space_id)
+
+    data = get_page_markdown(str(page_id))
+    page = data.get("page", data)
+
+    from datetime import datetime as _dt
+
+    return PageOut(
+        id=page["id"],
+        slug_id=page.get("slugId") or page.get("slug_id") or "",
+        title=page.get("title"),
+        icon=page.get("icon"),
+        position=page.get("position"),
+        parent_page_id=page.get("parentPageId") or page.get("parent_page_id"),
+        creator_id=page.get("creatorId") or page.get("creator_id"),
+        last_updated_by_id=page.get("lastUpdatedById") or page.get("last_updated_by_id"),
+        space_id=page.get("spaceId") or page.get("space_id") or str(space_id),
+        workspace_id=page.get("workspaceId") or page.get("workspace_id") or "",
+        is_locked=page.get("isLocked") or page.get("is_locked") or False,
+        content=page.get("content"),
+        created_at=page.get("createdAt") or page.get("created_at") or _dt.utcnow(),
+        updated_at=page.get("updatedAt") or page.get("updated_at") or _dt.utcnow(),
+    )
 
 
 def get_space_tree(space_id: UUID) -> SpaceTreeOut:

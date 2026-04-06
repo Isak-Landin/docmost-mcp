@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Optional
 from uuid import UUID
 
-from app.docmost import get_space_tree
+from app.query.docmost import get_space_tree
 from app.models import (
     PageTreeNode,
     ReplicaNameResolutionOut,
@@ -24,28 +24,9 @@ _INVALID_PATH_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
 _WINDOWS_RESERVED_NAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    "COM1",
-    "COM2",
-    "COM3",
-    "COM4",
-    "COM5",
-    "COM6",
-    "COM7",
-    "COM8",
-    "COM9",
-    "LPT1",
-    "LPT2",
-    "LPT3",
-    "LPT4",
-    "LPT5",
-    "LPT6",
-    "LPT7",
-    "LPT8",
-    "LPT9",
+    "CON", "PRN", "AUX", "NUL",
+    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 }
 
 
@@ -106,11 +87,8 @@ def resolve_replica_directory_name(
 
     if sanitized_title.casefold() not in existing_casefold:
         return ReplicaNameResolutionOut(
-            input_title=title,
-            slug_id=slug_id,
-            page_id=page_id,
-            sanitized_title=sanitized_title,
-            local_dir_name=sanitized_title,
+            input_title=title, slug_id=slug_id, page_id=page_id,
+            sanitized_title=sanitized_title, local_dir_name=sanitized_title,
             collision_strategy="title",
         )
 
@@ -118,11 +96,8 @@ def resolve_replica_directory_name(
         slug_candidate = f"{sanitized_title}__{slug_component}"
         if slug_candidate.casefold() not in existing_casefold:
             return ReplicaNameResolutionOut(
-                input_title=title,
-                slug_id=slug_id,
-                page_id=page_id,
-                sanitized_title=sanitized_title,
-                local_dir_name=slug_candidate,
+                input_title=title, slug_id=slug_id, page_id=page_id,
+                sanitized_title=sanitized_title, local_dir_name=slug_candidate,
                 collision_strategy="title_plus_slug_id",
             )
 
@@ -131,11 +106,8 @@ def resolve_replica_directory_name(
         fallback_candidate = f"{sanitized_title}__{suffix_seed[:suffix_length]}"
         if fallback_candidate.casefold() not in existing_casefold:
             return ReplicaNameResolutionOut(
-                input_title=title,
-                slug_id=slug_id,
-                page_id=page_id,
-                sanitized_title=sanitized_title,
-                local_dir_name=fallback_candidate,
+                input_title=title, slug_id=slug_id, page_id=page_id,
+                sanitized_title=sanitized_title, local_dir_name=fallback_candidate,
                 collision_strategy="title_plus_short_page_id",
             )
 
@@ -144,11 +116,8 @@ def resolve_replica_directory_name(
         fallback_candidate = f"{sanitized_title}__{suffix_seed}-{index}"
         if fallback_candidate.casefold() not in existing_casefold:
             return ReplicaNameResolutionOut(
-                input_title=title,
-                slug_id=slug_id,
-                page_id=page_id,
-                sanitized_title=sanitized_title,
-                local_dir_name=fallback_candidate,
+                input_title=title, slug_id=slug_id, page_id=page_id,
+                sanitized_title=sanitized_title, local_dir_name=fallback_candidate,
                 collision_strategy="title_plus_numeric_fallback",
             )
         index += 1

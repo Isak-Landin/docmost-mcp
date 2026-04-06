@@ -405,6 +405,21 @@ To inspect replica naming and sync rules without a space-specific lookup, use:
 http://<YOUR_DOCMOST_MCP_HOST>:8099/replica/standards
 ```
 
+#### Write endpoints (require `DOCMOST_APP_URL` + `DOCMOST_USER_*` in `.env`)
+
+Auth is transparent — all write routes log in automatically on first use.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/spaces` | Create a space |
+| `DELETE` | `/spaces/{space_id}` | Delete a space permanently |
+| `POST` | `/spaces/{space_id}/pages` | Create a page (add `parent_page_id` for a child page) |
+| `PUT` | `/spaces/{space_id}/pages/{page_id}` | Update a page title and/or content |
+| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | Delete a page (soft-delete) |
+
+All content fields accept and return **markdown**.
+Use `operation: replace | append | prepend` on the update endpoint to control how content is applied.
+
 ### 8. Optional: place behind HTTPS or a reverse proxy
 
 If Copilot CLI runs on another machine, HTTPS is usually the cleanest approach.
@@ -481,7 +496,7 @@ Then enter the remote HTTP MCP URL:
 https://<YOUR_DOCMOST_MCP_HOST>/mcp
 ```
 
-Allow only these tools:
+Allow these tools:
 
 ```text
 list_spaces
@@ -492,6 +507,11 @@ resolve_replica_directory_name
 get_replica_structure
 list_pages
 get_page
+create_space
+delete_space
+create_page
+update_page
+delete_page
 ```
 
 After saving with `/mcp add`, verify that:
@@ -514,7 +534,13 @@ $COPILOT_HOME/mcp-config.json
     "docmost-mcp": {
       "type": "http",
       "url": "https://<YOUR_DOCMOST_MCP_HOST>/mcp",
-      "tools": ["list_spaces", "get_space", "get_space_tree", "get_replica_standards", "resolve_replica_directory_name", "get_replica_structure", "list_pages", "get_page"]
+      "tools": [
+        "list_spaces", "get_space", "get_space_tree",
+        "get_replica_standards", "resolve_replica_directory_name", "get_replica_structure",
+        "list_pages", "get_page",
+        "create_space", "delete_space",
+        "create_page", "update_page", "delete_page"
+      ]
     }
   }
 }
