@@ -1,11 +1,11 @@
 services:
   # ------------------------------------------------------------
-  # Docmost read-only REST + MCP API
+  # Docmost MCP
   # Connects directly to the live Docmost PostgreSQL database
   # and exposes container-hosted REST and MCP endpoints.
   # ------------------------------------------------------------
-  docmost-api:
-    container_name: docmost-api
+  docmost-mcp:
+    container_name: docmost-mcp
     build:
       context: .
       dockerfile: Dockerfile

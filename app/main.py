@@ -14,8 +14,8 @@ async def app_lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Docmost Database API",
-    description="Read-only REST and MCP API for live Docmost PostgreSQL data. Exposes spaces and pages with normalized text content.",
+    title="Docmost MCP",
+    description="Read-only REST and MCP service for live Docmost PostgreSQL data. Exposes spaces and pages with normalized text content.",
     version="1.0.0",
     lifespan=app_lifespan,
 )

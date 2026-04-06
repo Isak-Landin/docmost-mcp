@@ -25,7 +25,7 @@ If requested data is missing, report that explicitly instead of inferring it.
 """.strip()
 
 mcp = FastMCP(
-    "Docmost Read-Only MCP",
+    "Docmost MCP",
     instructions=SERVER_INSTRUCTIONS,
     json_response=True,
 )
