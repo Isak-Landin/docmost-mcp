@@ -2,17 +2,19 @@ import os
 
 from fastapi import FastAPI
 
+from app.mcp_server import mcp
 from app.routers import health, spaces, pages
 
 app = FastAPI(
     title="Docmost Database API",
-    description="REST API for live Docmost PostgreSQL data. Exposes spaces and pages with normalized text content.",
+    description="Read-only REST and MCP API for live Docmost PostgreSQL data. Exposes spaces and pages with normalized text content.",
     version="1.0.0",
 )
 
 app.include_router(health.router)
 app.include_router(spaces.router)
 app.include_router(pages.router)
+app.mount("/mcp", mcp.streamable_http_app())
 
 
 if __name__ == "__main__":

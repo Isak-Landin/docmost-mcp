@@ -1,8 +1,8 @@
 services:
   # ------------------------------------------------------------
-  # Docmost Database API
+  # Docmost read-only REST + MCP API
   # Connects directly to the live Docmost PostgreSQL database
-  # and exposes a REST API for spaces and pages.
+  # and exposes container-hosted REST and MCP endpoints.
   # ------------------------------------------------------------
   docmost-api:
     container_name: docmost-api
