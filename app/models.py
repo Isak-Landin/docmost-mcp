@@ -83,3 +83,67 @@ class SpaceTreeOut(BaseModel):
 
 
 PageTreeNode.model_rebuild()
+
+
+class ReplicaStandardsOut(BaseModel):
+    replica_root_suffix: str = Field(description="Suffix appended to the space name to form the replica root directory.")
+    replica_root_example: str = Field(description="Example replica root directory path.")
+    page_directory_base_rule: str = Field(description="Base directory naming rule for a page.")
+    sibling_collision_rule: str = Field(description="How same-level directory name collisions are resolved.")
+    final_collision_fallback_rule: str = Field(description="Fallback naming rule if the primary collision strategy still collides.")
+    page_content_file_name: str = Field(description="File name that stores the page's markdown/text content.")
+    page_meta_file_name: str = Field(description="File name that stores per-page metadata.")
+    replica_meta_file_name: str = Field(description="File name that stores replica-level metadata.")
+    tree_cache_file_name: str = Field(description="File name that stores the resolved tree snapshot.")
+    read_source_policy: str = Field(description="How the remote Docmost source should be used for reads.")
+    local_edit_policy: str = Field(description="How the local replica should be used for edits.")
+    local_truth_policy: str = Field(description="How newer local-only changes should be treated before manual sync.")
+    remote_sync_policy: str = Field(description="How to interpret remote state after local-only replica edits.")
+
+    model_config = {"from_attributes": True}
+
+
+class ReplicaNameResolutionOut(BaseModel):
+    input_title: str = Field(description="Requested page title.")
+    slug_id: Optional[str] = Field(None, description="Optional remote or planned slug identifier.")
+    page_id: Optional[UUID] = Field(None, description="Optional remote page UUID.")
+    sanitized_title: str = Field(description="Filesystem-safe form of the title used as the base directory name.")
+    local_dir_name: str = Field(description="Resolved local directory name for the page.")
+    collision_strategy: str = Field(description="Naming strategy used to resolve the final directory name.")
+
+    model_config = {"from_attributes": True}
+
+
+class ReplicaTreeNode(BaseModel):
+    id: UUID = Field(description="Page UUID")
+    title: Optional[str] = Field(None, description="Page title")
+    slug_id: str = Field(description="Short URL-friendly identifier")
+    parent_page_id: Optional[UUID] = Field(None, description="UUID of the parent page, or null for root pages")
+    local_dir_name: str = Field(description="Resolved directory name for this page inside the replica.")
+    local_dir_path: str = Field(description="Replica-relative directory path for this page.")
+    content_file_path: str = Field(description="Replica-relative content file path for this page.")
+    meta_file_path: str = Field(description="Replica-relative metadata file path for this page.")
+    children: list["ReplicaTreeNode"] = Field(default_factory=list, description="Nested child pages in replica form.")
+
+    model_config = {"from_attributes": True}
+
+
+class ReplicaStructureOut(BaseModel):
+    space: SpaceSummaryOut
+    replica_root: str = Field(description="Replica root directory path for the space.")
+    replica_meta_file_path: str = Field(description="Replica-relative path to the replica metadata file.")
+    tree_cache_file_path: str = Field(description="Replica-relative path to the tree cache file.")
+    standards: ReplicaStandardsOut
+    root_pages: list[ReplicaTreeNode] = Field(
+        default_factory=list,
+        description="Root-level page directories in replica form, each with nested descendants.",
+    )
+    orphan_pages: list[ReplicaTreeNode] = Field(
+        default_factory=list,
+        description="Replica nodes for pages that could not be attached to a normal root because the parent is missing or unreachable.",
+    )
+
+    model_config = {"from_attributes": True}
+
+
+ReplicaTreeNode.model_rebuild()

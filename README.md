@@ -15,7 +15,7 @@ This service exposes:
 
 | Surface | Path | Purpose |
 |---|---|---|
-| REST API | `/health`, `/spaces`, `/spaces/{space_id}`, `/spaces/{space_id}/tree`, `/spaces/{space_id}/pages`, `/spaces/{space_id}/pages/{page_id}` | Read-only HTTP access to spaces, trees, and pages |
+| REST API | `/health`, `/spaces`, `/spaces/{space_id}`, `/spaces/{space_id}/tree`, `/spaces/{space_id}/replica-structure`, `/spaces/{space_id}/pages`, `/spaces/{space_id}/pages/{page_id}`, `/replica/standards`, `/replica/resolve-directory-name` | Read-only HTTP access to spaces, trees, replica structure, replica standards, and pages |
 | MCP | `/mcp` | Remote streamable HTTP MCP endpoint |
 
 This service does **not** expose write operations.
@@ -36,8 +36,11 @@ This service does **not** expose write operations.
 | `GET` | `/spaces` | list all non-deleted spaces |
 | `GET` | `/spaces/{space_id}` | get one non-deleted space |
 | `GET` | `/spaces/{space_id}/tree` | get the nested page tree for one space |
+| `GET` | `/spaces/{space_id}/replica-structure` | get the deterministic local replica layout for one space |
 | `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space |
 | `GET` | `/spaces/{space_id}/pages/{page_id}` | get one non-deleted page in its space |
+| `GET` | `/replica/standards` | get local replica naming, structure, and sync rules |
+| `GET` | `/replica/resolve-directory-name` | resolve the correct local directory name for a page title under the shared standard |
 
 ## Exposed MCP tools
 
@@ -48,6 +51,9 @@ The MCP endpoint exposes these read-only tools:
 | `list_spaces` | list all non-deleted spaces |
 | `get_space` | get one space by UUID |
 | `get_space_tree` | get the nested page tree for one space |
+| `get_replica_standards` | get local replica naming, structure, and sync rules |
+| `resolve_replica_directory_name` | resolve the correct local directory name for a page title under the shared standard |
+| `get_replica_structure` | get the deterministic local replica layout for one space |
 | `list_pages` | list all pages in a space |
 | `get_page` | get one page by UUID inside a space |
 
@@ -96,6 +102,43 @@ Current limitation:
 - the server is read-only, so this workflow depends on local-file maintenance by the client
 - remote Docmost remains the source to read from, but the local replica is the place to keep immediately usable synced documentation text
 
+## Replica structure and naming standard
+
+Use the replica surfaces when you want the client to stop guessing local layout.
+
+- use `get_replica_standards()` or `GET /replica/standards` for the shared policy
+- use `get_replica_structure(space_id)` or `GET /spaces/{space_id}/replica-structure` for the full local layout of an existing remote space
+- use `resolve_replica_directory_name(...)` or `GET /replica/resolve-directory-name` when creating a new local-only page directory that does not yet exist on remote
+
+Replica root:
+
+- root path: `./{space_name}-replica/`
+
+Per-page replica mapping:
+
+- every Docmost page maps to a **directory**
+- the page's own content lives in `page.md`
+- the page's metadata lives in `_meta.json`
+- child pages become nested subdirectories under the parent page directory
+
+Replica root support files:
+
+- `_replica.json` stores replica-level metadata and sync state
+- `_tree.json` stores the resolved tree snapshot used for the replica
+
+Directory naming rule:
+
+1. use the filesystem-safe page title as the base directory name
+2. if sibling pages collide at the same level, use `{title}__{slug_id}`
+3. if `slug_id` is missing or still collides, use `{title}__{short_page_id}`
+
+Sync and truth rule:
+
+- remote Docmost is the published read source
+- the local replica is the editable working copy
+- if newer local replica changes exist, the local replica becomes the working source of truth until a human syncs those changes back to remote
+- after local-only edits, remote Docmost may be stale or effectively deprecated until that manual sync occurs
+
 The MCP server also publishes built-in instructions:
 
 ```text
@@ -106,11 +149,16 @@ Only use the provided Docmost tools to inspect spaces and pages.
 Start with list_spaces when you need to identify the correct space.
 If the user gives a space name rather than a UUID, find the matching space via list_spaces first.
 When you need the page hierarchy of a space, use get_space_tree instead of reconstructing it manually.
+When you need the deterministic local replica layout for a space, use get_replica_structure.
+When you need naming or sync rules for local replica work, use get_replica_standards.
+When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
 Use the returned space_id for list_pages and get_page.
 Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
 Treat text_content as normalized plain text, not authoritative rich formatting.
 If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
 Maintain or create a local replica of retrieved documentation when the client workflow allows it, because the remote surface is read-only.
+If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
+After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
 If requested data is missing, report that explicitly instead of inferring it.
 ```
@@ -146,6 +194,8 @@ Important files:
 | `requirements.txt` | Python dependencies |
 | `app/main.py` | FastAPI application entrypoint |
 | `app/mcp_server.py` | MCP server definition |
+| `app/replica.py` | replica naming, layout, and sync-rule logic |
+| `app/routers/replica.py` | REST routes for replica standards, naming resolution, and replica structure |
 
 ## Full setup from start to finish
 
@@ -324,6 +374,18 @@ If the database is unreachable, the read routes return:
 - REST: `503` with `{"detail":"Docmost database connection failed"}`
 - MCP: tool error with `Docmost database connection failed`
 
+To inspect the exact local-replica projection for one space, use:
+
+```text
+http://<YOUR_DOCMOST_MCP_HOST>:8099/spaces/<SPACE_ID>/replica-structure
+```
+
+To inspect replica naming and sync rules without a space-specific lookup, use:
+
+```text
+http://<YOUR_DOCMOST_MCP_HOST>:8099/replica/standards
+```
+
 ### 8. Optional: place behind HTTPS or a reverse proxy
 
 If Copilot CLI runs on another machine, HTTPS is usually the cleanest approach.
@@ -433,6 +495,9 @@ Allow only these tools:
 list_spaces
 get_space
 get_space_tree
+get_replica_standards
+resolve_replica_directory_name
+get_replica_structure
 list_pages
 get_page
 ```
@@ -442,6 +507,9 @@ Recommended meaning of those tools in Copilot CLI:
 - `list_spaces`: first discovery step when you only know a human-readable space name
 - `get_space`: inspect one specific space once you already have its UUID
 - `get_space_tree`: preferred structure-discovery step for nested page relationships in a space
+- `get_replica_standards`: policy source for local replica naming, files, and sync behavior
+- `resolve_replica_directory_name`: naming helper for local-only planned pages
+- `get_replica_structure`: preferred local-layout projection for replica creation and refresh
 - `list_pages`: flat page listing for follow-up inspection or lookup
 - `get_page`: final page fetch once both `space_id` and `page_id` are known
 
@@ -487,7 +555,7 @@ Minimal file structure:
     "docmost-mcp": {
       "type": "http",
       "url": "https://<YOUR_DOCMOST_MCP_HOST>/mcp",
-      "tools": ["list_spaces", "get_space", "get_space_tree", "list_pages", "get_page"]
+      "tools": ["list_spaces", "get_space", "get_space_tree", "get_replica_standards", "resolve_replica_directory_name", "get_replica_structure", "list_pages", "get_page"]
     }
   }
 }
@@ -506,7 +574,7 @@ Example merged file when you want to keep other custom MCP servers too:
     "docmost-mcp": {
       "type": "http",
       "url": "https://<YOUR_DOCMOST_MCP_HOST>/mcp",
-      "tools": ["list_spaces", "get_space", "get_space_tree", "list_pages", "get_page"]
+      "tools": ["list_spaces", "get_space", "get_space_tree", "get_replica_standards", "resolve_replica_directory_name", "get_replica_structure", "list_pages", "get_page"]
     }
   }
 }
@@ -537,7 +605,12 @@ Treat it as read-only.
 If docs, documented behavior, page names, or relevant paths are mentioned without full context in the prompt, consult docmost-mcp before guessing.
 Always start by identifying the correct Docmost space before looking up pages.
 Use get_space_tree when you need to understand nested documentation structure quickly.
+Use get_replica_structure when you need the exact local replica layout for an existing space.
+Use get_replica_standards when you need the replica naming, file, or sync rules.
+Use resolve_replica_directory_name when creating a new local-only page directory.
 Create and maintain a local replica of retrieved documentation when needed, because the remote Docmost surface is read-only.
+If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 Treat page content as possibly stale and call out deprecated or old material explicitly when you see it.
 Do not use it for unrelated repositories or unrelated tasks.
 ```
@@ -555,7 +628,11 @@ Treat the server as read-only.
 If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context in the prompt, consult docmost-mcp before guessing.
 Resolve the correct space first, then inspect pages within that space.
 Use get_space_tree for nested documentation structure before falling back to manual page-by-page reconstruction.
+Use get_replica_structure for the exact local replica layout of an existing space.
+Use get_replica_standards and resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
 Create and maintain a local replica of retrieved documentation when needed, since the remote Docmost surface is read-only.
+If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+Treat remote Docmost as potentially stale after local-only edits until manual sync occurs.
 If a page appears deprecated or stale relative to verified current behavior, say that explicitly.
 Do not use the Docmost MCP server in unrelated repositories.
 ```
@@ -598,7 +675,11 @@ If documentation, documented behavior, page names, or relevant file/path referen
 Always resolve the correct space first, then inspect pages within that space.
 Pages are space-scoped and are not global lookups.
 Use get_space_tree when you need the nested structure of a space.
+Use get_replica_structure for the exact local replica layout of an existing space.
+Use get_replica_standards and resolve_replica_directory_name for local-only additions that are not yet present on remote.
 Create and maintain a local replica of retrieved documentation when needed, because the remote Docmost surface is read-only.
+If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+Treat remote Docmost as potentially stale after local-only edits until manual sync occurs.
 If a page appears stale, deprecated, or older than verified current behavior, say that explicitly.
 Prefer newer verified repo/runtime behavior over stale Docmost content when they conflict.
 ```
@@ -650,6 +731,16 @@ Check:
 2. you are using that same `space_id` for `/spaces/{space_id}/tree`, `/spaces/{space_id}/pages`, `get_space_tree`, or `list_pages`
 3. you are not treating page lookup as global across all spaces
 4. the page may genuinely be stale, deleted, or in a different space
+
+### Replica layout or naming is inconsistent
+
+Check:
+
+1. you are using `/spaces/{space_id}/replica-structure` or `get_replica_structure` for existing remote content
+2. you are using `/replica/standards` or `get_replica_standards` for the shared local-replica rules
+3. you are using `/replica/resolve-directory-name` or `resolve_replica_directory_name` for new local-only page directories
+4. you are treating the local replica as the working source of truth only after newer local edits actually exist
+5. you are treating remote Docmost as potentially stale after local-only documentation edits until manual sync occurs
 
 ### Database connection fails
 

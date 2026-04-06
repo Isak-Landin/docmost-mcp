@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI
 
 from app.mcp_server import mcp
-from app.routers import health, spaces, pages
+from app.routers import health, pages, replica, spaces
 
 
 @asynccontextmanager
@@ -21,6 +21,7 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(replica.router)
 app.include_router(spaces.router)
 app.include_router(pages.router)
 # FastMCP already exposes its own /mcp route inside the sub-app.

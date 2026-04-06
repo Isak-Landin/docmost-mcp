@@ -15,18 +15,38 @@ from app.docmost import (
     list_pages as fetch_pages,
     list_spaces as fetch_spaces,
 )
-from app.models import PageOut, SpaceOut, SpaceTreeOut
+from app.models import (
+    PageOut,
+    ReplicaNameResolutionOut,
+    ReplicaStandardsOut,
+    ReplicaStructureOut,
+    SpaceOut,
+    SpaceTreeOut,
+)
+from app.replica import (
+    get_replica_standards as fetch_replica_standards,
+    get_replica_structure as fetch_replica_structure,
+    resolve_replica_directory_name as resolve_replica_directory_name_impl,
+)
 
 SERVER_INSTRUCTIONS = """
 This server is strictly read-only.
 Never create, update, move, or delete spaces or pages.
+Use this server as the main documentation source for the active project when documentation is relevant.
 Only use the provided Docmost tools to inspect spaces and pages.
 Start with list_spaces when you need to identify the correct space.
 If the user gives a space name rather than a UUID, find the matching space via list_spaces first.
 When you need the page hierarchy of a space, prefer get_space_tree instead of reconstructing it yourself.
+When you need the deterministic local replica layout for a space, use get_replica_structure.
+When you need naming or sync rules for local replica work, use get_replica_standards.
+When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
 Use the returned space_id for list_pages and get_page.
 Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
 Treat text_content as normalized plain text, not authoritative rich formatting.
+If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
+Maintain or create a local replica of retrieved documentation when the client workflow allows it, because the remote surface is read-only.
+If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
+After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
 If requested data is missing, report that explicitly instead of inferring it.
 """.strip()
@@ -63,6 +83,39 @@ def get_space_tree(space_id: UUID) -> SpaceTreeOut:
     """Get the fully nested page tree for one space identified by space_id."""
     try:
         return fetch_space_tree(space_id)
+    except DocmostConnectionError as exc:
+        raise ToolError(str(exc)) from exc
+    except SpaceNotFoundError as exc:
+        raise ToolError(str(exc)) from exc
+
+
+@mcp.tool()
+def get_replica_standards() -> ReplicaStandardsOut:
+    """Get the shared naming, layout, and sync rules for local documentation replicas."""
+    return fetch_replica_standards()
+
+
+@mcp.tool()
+def resolve_replica_directory_name(
+    title: str,
+    slug_id: str | None = None,
+    page_id: UUID | None = None,
+    existing_dir_names: list[str] | None = None,
+) -> ReplicaNameResolutionOut:
+    """Resolve the correct local replica directory name for a page title under the shared standard."""
+    return resolve_replica_directory_name_impl(
+        title=title,
+        slug_id=slug_id,
+        page_id=page_id,
+        existing_dir_names=existing_dir_names or [],
+    )
+
+
+@mcp.tool()
+def get_replica_structure(space_id: UUID) -> ReplicaStructureOut:
+    """Get the deterministic local replica layout for one space identified by space_id."""
+    try:
+        return fetch_replica_structure(space_id)
     except DocmostConnectionError as exc:
         raise ToolError(str(exc)) from exc
     except SpaceNotFoundError as exc:
