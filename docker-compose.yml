@@ -19,7 +19,7 @@ services:
       DOCMOST_DB_PASSWORD: ${DOCMOST_DB_PASSWORD}
       LISTEN_HOST: ${LISTEN_HOST:-0.0.0.0}
       LISTEN_PORT: ${LISTEN_PORT:-8099}
-      DOCMOST_APP_URL: http://docmost-docmost-1:3000
+      DOCMOST_APP_URL: ${DOCMOST_APP_URL}
       DOCMOST_USER_EMAIL: ${DOCMOST_USER_EMAIL}
       DOCMOST_USER_PASSWORD: ${DOCMOST_USER_PASSWORD}
     ports:
@@ -29,8 +29,9 @@ services:
 
 networks:
   # Shared network with the live Docmost stack.
-  # The Docmost PostgreSQL container (docmost-db-1) is reachable
-  # inside this network via the hostname configured in DOCMOST_DB_HOST.
+  # The Docmost PostgreSQL container is reachable inside this network
+  # via the hostname configured in DOCMOST_DB_HOST.
+  # Set DOCMOST_NETWORK_NAME in .env to match your Docmost stack's Docker network.
   docmost_network:
     external: true
-    name: docmost_default
+    name: ${DOCMOST_NETWORK_NAME:-docmost_default}

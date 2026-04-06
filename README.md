@@ -252,21 +252,18 @@ Place the project files there.
 
 ### 2. Confirm the shared Docker network name
 
-This project expects the external Docker network:
+By default this project joins the Docker network named `docmost_default`.
 
-```text
-docmost_default
+Set `DOCMOST_NETWORK_NAME` in your `.env` if your Docmost stack uses a different network name:
+
+```env
+DOCMOST_NETWORK_NAME=my_custom_network
 ```
 
-That is the network currently referenced in `docker-compose.yml`.
+To find your Docmost network name:
 
-If your live Docmost stack uses a different Docker network name, update this block:
-
-```yaml
-networks:
-  docmost_network:
-    external: true
-    name: docmost_default
+```bash
+docker network ls | grep docmost
 ```
 
 ### 3. Create the runtime environment file
@@ -329,16 +326,20 @@ DOCMOST_DB_NAME=<DOCMOST_DB_NAME>
 DOCMOST_DB_USER=<DOCMOST_DB_USER>
 DOCMOST_DB_PASSWORD=<DOCMOST_DB_PASSWORD>
 
+DOCMOST_APP_URL=http://<DOCMOST_CONTAINER_NAME>:3000
+DOCMOST_USER_EMAIL=<YOUR_DOCMOST_USER_EMAIL>
+DOCMOST_USER_PASSWORD=<YOUR_DOCMOST_USER_PASSWORD>
+
+DOCMOST_NETWORK_NAME=docmost_default
+
 LISTEN_HOST=0.0.0.0
 LISTEN_PORT=8099
 EXTERNAL_PORT=8099
 
+MCP_ALLOWED_HOSTS=<YOUR_DOCMOST_MCP_HOSTNAME>
+
 MODE=prod
 LOG_LEVEL=INFO
-
-DOCMOST_APP_URL=http://<DOCMOST_CONTAINER_HOSTNAME>:3000
-DOCMOST_USER_EMAIL=<YOUR_DOCMOST_USER_EMAIL>
-DOCMOST_USER_PASSWORD=<YOUR_DOCMOST_USER_PASSWORD>
 ```
 
 ### 5. Build and start the container
@@ -353,7 +354,7 @@ This will:
 
 1. build the image from `Dockerfile`
 2. create or recreate the `docmost-mcp` container
-3. attach it to the external `docmost_default` network
+3. attach it to the external Docker network set by `DOCMOST_NETWORK_NAME`
 4. expose the service on the configured external port
 
 ### 6. Confirm the container is running
