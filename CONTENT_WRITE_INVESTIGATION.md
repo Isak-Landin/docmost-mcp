@@ -1,149 +1,202 @@
-# Content Write Investigation — MCP Consumer Task
+# Content Write Debug — Local Iterative Test
 
 > **This file is addressed to the local MCP consumer (Copilot CLI / AI assistant).**
-> Your task is to **investigate and report only** — do not implement any fix.
-> Use the MCP tools available to you to look up documentation, then map findings back
-> to the questions at the bottom of this file.
+> Follow each step in order. **Halt after every step and wait for explicit user
+> confirmation before proceeding.** Do not skip ahead. Do not modify any project
+> file unless a step explicitly asks you to.
 
 ---
 
-## Context: Two distinct systems — read this carefully
+## Background: the known problem
 
-There are **two separate systems** involved. Do not confuse their routes or logic.
+The project (`docmost-mcp-api`) has a write layer (`app/write/docmost.py`) that calls
+the Docmost REST API to create and update pages. It sends `content` and `format: "markdown"`
+in the request body. Pages are created/updated successfully — but the content body is always
+empty in the Docmost UI.
 
-### System A — Docmost (external, self-hosted)
-The upstream documentation platform. Runs as a Docker container. Exposes its own
-REST API (e.g. `POST /api/pages/create`, `POST /api/pages/update`, `POST /api/pages/import`).
-Has its own internal architecture (NestJS + Fastify backend, Hocuspocus WebSocket collab server,
-PostgreSQL database). **We do not own or modify Docmost's code.**
+Two explanations have been tested against the live remote Docmost instance and neither resolved it:
+1. ValidationPipe in Docmost stripping undeclared fields from the DTO — suspected but not fully proven
+2. Collab gateway debounce (10–45 s) causing a stale read-back — tested with 45 s wait, still blank
 
-### System B — docmost-mcp-api (this project)
-A FastAPI + MCP server that sits alongside Docmost and exposes:
-- A **REST API** for external consumers
-- An **MCP endpoint** at `/mcp` for AI tooling (Copilot CLI)
-
-The project's write layer lives in `app/write/docmost.py` and calls **System A's** (Docmost's)
-REST API via HTTP. The project's read layer in `app/query/` reads directly from Docmost's
-PostgreSQL database via psycopg2.
-
-The project may appear in your local Docmost docs space under a different name such as
-**"Local LLM Helper"**, **"Docmost MCP"**, or similar. The canonical GitHub repo name is
-`docmost-mcp-api` (remote: `git@github.com:Isak-Landin/docmost-mcp-api.git`).
+The goal of this session is to reproduce the problem against a **fresh isolated local Docmost
+instance** and identify exactly where content is lost, so we can fix it.
 
 ---
 
-## Problem statement
+## Step 1 — Spin up a local isolated Docmost instance
 
-When an MCP consumer calls `create_page` or `update_page` with a `content` field
-containing markdown, the page is created/updated in Docmost **but the content is silently
-discarded** — the page body remains empty in the Docmost UI.
+Create a `docker-compose.local-test.yml` file **in the project root** of `docmost-mcp-api`
+with a fresh Docmost stack on ports that do not conflict with the production stack.
+Use port **3100** for the Docmost app and **5533** for its PostgreSQL.
+Use an isolated Docker network named `docmost_local_test_net`.
 
-The write layer (`app/write/docmost.py`) sends payloads like:
+The compose file must include:
+- `docmost` service (image: `docmost/docmost:latest`, port 3100:3000)
+- `db` service (image: `postgres:16-alpine`, port 5533:5432)
+- `redis` service (image: `redis:7.2-alpine`, internal only)
+- A named network `docmost_local_test_net` (bridge, not external)
 
-```json
-{
-  "spaceId": "...",
-  "title": "My Page",
-  "content": "## Hello\nThis is markdown.",
-  "format": "markdown"
-}
+Use these fixed values for the local test database:
+- DB name: `docmost`
+- DB user: `docmost`
+- DB password: `localtestpass`
+- Docmost `APP_SECRET`: `local-test-secret-not-for-production`
+- Docmost `DATABASE_URL`: `postgresql://docmost:localtestpass@db:5432/docmost`
+- Docmost `REDIS_URL`: `redis://redis:6379`
+
+Start the stack with:
+```
+docker compose -f docker-compose.local-test.yml up -d
 ```
 
-to **System A's** (Docmost's) endpoints `POST /api/pages/create` and `POST /api/pages/update`.
+Then report:
+- Whether all three containers started successfully
+- The URL where the Docmost UI is reachable from localhost (should be `http://localhost:3100`)
+
+**HALT. Wait for user to confirm they can reach the Docmost UI at http://localhost:3100 before proceeding.**
 
 ---
 
-## What has already been investigated — do not repeat these steps
+## Step 2 — User creates account
 
-### On System A (Docmost internal) — confirmed findings
+Ask the user to:
+1. Open `http://localhost:3100` in a browser
+2. Complete the Docmost setup wizard (create workspace and admin account)
+3. Confirm the email address and password they used
 
-1. **`POST /api/pages/create`** — Docmost's `CreatePageDto` declares only:
-   `title`, `icon`, `parentPageId`, `spaceId`. No `content` or `format` fields.
-   NestJS `ValidationPipe({ whitelist: true })` strips any undeclared fields before the
-   service method runs. Content is silently discarded before any DB write.
-
-2. **`POST /api/pages/update`** — Same. `UpdatePageDto` extends `CreatePageDto` adding
-   only `pageId`. No `content` field.
-
-3. **`POST /api/pages/import`** — Accepts a multipart `.md` file upload. Internally
-   converts markdown → ProseMirror JSON and writes to DB. Creates a **new** page only —
-   cannot update an existing page's content.
-
-4. **`WS ws://docmost:3000/collab`** — Hocuspocus WebSocket collab server. The only
-   code path that calls `pageRepo.updatePage({ content, ydoc, textContent })`. Triggered
-   only by the live collaborative editor, not any HTTP call.
-
-5. **`POST /api/pages/info`** — Returns a page with `content` as ProseMirror JSON.
-   Read-only. Works correctly.
-
-### On System B (docmost-mcp-api) — confirmed findings
-
-1. `app/query/prosemirror.py` — A **ProseMirror JSON → Markdown** converter (read direction
-   only). Called when returning page content to the MCP consumer. No reverse translator
-   (markdown → ProseMirror) exists anywhere in the project.
-
-2. Git history of docmost-mcp-api shows: the only phase where a DB write ever landed
-   content was an early commit that used a **direct psycopg2 `INSERT`** into
-   `public.pages` with a hardcoded blank ProseMirror skeleton:
-   `{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"..."},"content":[]}]}`
-   — not real content. Those write capabilities were explicitly removed shortly after.
-
-3. The current REST write layer (`app/write/docmost.py`) sends `content + format:"markdown"`
-   to Docmost routes that strip those fields. This has never successfully written content.
-
-### What is not yet resolved
-
-The user is confident that rich content writing has worked at some point via this project's
-workflow. This has **not** been proven or disproven from the git history alone. The user
-is not referring to the blank-skeleton DB write phase.
+**HALT. Do not proceed until user explicitly confirms the account is created and they are logged in.**
 
 ---
 
-## Translation context
+## Step 3 — Configure the MCP container to point at the local test instance
 
-`app/query/prosemirror.py` converts ProseMirror JSON → Markdown on every read response.
-This confirms the project has always known Docmost stores content as ProseMirror JSON.
+Create a `.env.local-test` file in the project root by copying `.env` and changing
+only the values that must differ for the local test. The following values must be set
+to target the local test instance:
 
-The open question is: **is there a supported Docmost mechanism to accept markdown or
-ProseMirror JSON via HTTP and write it to `public.pages.content`**, beyond what has
-already been found above?
+```
+DOCMOST_APP_URL=http://docmost:3000
+DOCMOST_DB_HOST=db
+DOCMOST_DB_PORT=5432
+DOCMOST_DB_NAME=docmost
+DOCMOST_DB_USER=docmost
+DOCMOST_DB_PASSWORD=localtestpass
+DOCMOST_NETWORK_NAME=docmost_local_test_net
+EXTERNAL_PORT=8198
+LISTEN_PORT=8198
+```
+
+For `DOCMOST_USER_EMAIL` and `DOCMOST_USER_PASSWORD`: ask the user to provide the
+credentials they just created in Step 2, then write them into `.env.local-test`.
+
+Do **not** set `DOCMOST_DB_URL` — let it derive from the individual components above.
+
+Then start the MCP container against the local test instance:
+```
+docker compose -f docker-compose.local-test.yml \
+  -f docker-compose.yml \
+  --env-file .env.local-test \
+  --project-name docmost-mcp-local-test \
+  up -d docmost-mcp
+```
+
+Verify the MCP container started and is reachable:
+```
+curl -s http://localhost:8198/health
+```
+
+Report the health check response.
+
+**HALT. Wait for user to confirm they want to proceed with write tests.**
 
 ---
 
-## Your task — investigate and report only. Do not implement any fix.
+## Step 4 — Test: create a space
 
-Using the MCP tools available to you, please do the following:
+Using the MCP tool `create_space` (or direct REST call to `POST /spaces` on
+`http://localhost:8198`), create a test space:
+- name: `Write Test`
+- slug: `write-test`
 
-### Step 1 — Search local docs (your connected Docmost space)
-Look in every accessible docs page for anything describing **how write operations are
-expected to work** for this project (`docmost-mcp-api`). Specifically look for:
+Report:
+- The full response from the API
+- Whether the space appears in the Docmost UI at `http://localhost:3100`
 
-- Any mention of content write, import, or update workflow
-- Any mention of ProseMirror, Tiptap, or Yjs/ydoc in the context of writing
-- Any mention of `POST /api/pages/import` or the collab WebSocket being used intentionally
-  as a write path
-- Any docs page that was clearly written by an MCP consumer (not a human) that contains
-  rich markdown content — this would be evidence that writing once worked
+**HALT. Wait for user to confirm whether the space is visible in the UI.**
 
-### Step 2 — Search Docmost's own documentation (if a Docmost docs space is accessible)
-If you can reach Docmost's official documentation via MCP, look for:
+---
 
-- Any documented API route that accepts markdown or structured content for page
-  creation/update that differs from `POST /api/pages/create` and `POST /api/pages/update`
-- Any documented integration or programmatic content creation pattern
+## Step 5 — Test: create a page with content
 
-### Step 3 — Cross-reference with project docs
-Compare what the local project documentation says about write capabilities against
-what you find in Steps 1 and 2. Report any contradictions or gaps.
+Using the MCP tool `create_page` (or direct REST call to `POST /spaces/{space_id}/pages`
+on `http://localhost:8198`), create a page with:
+- title: `Write Test Page`
+- content: `## Hello\n\nThis is a test paragraph.\n\n- item one\n- item two`
 
-### Step 4 — Report back with a structured summary
+Report:
+- The full raw response from the API including the `content` field value
+- Whether the page appears in the Docmost UI
+- Whether the page body shows any content in the Docmost UI, or is blank
 
-Provide:
-- What each relevant docs page says (quote or cite the source)
-- Whether any documented write path exists that differs from the current broken implementation
-- Whether any local doc page was clearly written by an MCP consumer with real content
-  (direct evidence that writing once worked)
-- Your best assessment of which Docmost mechanism the project was intended to use for
-  content writes, based solely on what the documentation states — not on assumptions
+**HALT. Wait for user to confirm what they see in the Docmost UI for this page.**
 
-**Do not implement a fix. Do not modify any file. Report findings only.**
+---
+
+## Step 6 — Test: update the page with content
+
+Using `update_page` (or direct REST call to `PUT /spaces/{space_id}/pages/{page_id}`),
+update the page created in Step 5 with:
+- content: `## Updated\n\nThis content was written by an update call.`
+- operation: `replace`
+
+After the call:
+1. Immediately read back the page via `get_page` and report the `content` field value
+2. Wait 60 seconds
+3. Read back the page again and report the `content` field value
+4. Ask the user to check the Docmost UI and report what they see
+
+Report all four data points together.
+
+**HALT. Wait for user to report what they see and confirm whether content is present.**
+
+---
+
+## Step 7 — Diagnose and report
+
+Based on the results of Steps 5 and 6, report the following:
+
+1. **Create path**: did `content` survive the create call? (Check the create response body
+   and what the UI shows immediately after creation.)
+
+2. **Update path**: did `content` survive the update call after 60 s?
+
+3. **If content is missing in both**: this confirms ValidationPipe is stripping the fields.
+   Check the running local Docmost container's compiled source directly:
+   ```
+   docker exec <docmost-container-name> \
+     node -e "const f=require('/app/apps/server/dist/core/page/dto/create-page.dto.js'); \
+     const keys=Object.getOwnPropertyNames(f.CreatePageDto.prototype); \
+     console.log(JSON.stringify(keys));"
+   ```
+   Report the full output. This will confirm which fields the DTO declares.
+
+4. **If content is present**: report the exact payload that succeeded, so the production
+   write path can be aligned to match.
+
+5. **Propose the fix**: based only on what you have observed and confirmed above —
+   not from assumptions — state the single most targeted change needed to make content
+   writes work, or confirm that a different mechanism (e.g., `POST /api/pages/import`)
+   is required.
+
+**HALT. Present findings to user and await decision on next action.**
+
+---
+
+## Cleanup (only when user instructs)
+
+When the user says to clean up:
+```
+docker compose -f docker-compose.local-test.yml \
+  --project-name docmost-mcp-local-test down -v
+```
+Then delete `docker-compose.local-test.yml` and `.env.local-test`.
