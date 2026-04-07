@@ -499,6 +499,20 @@ All IDs passed to write tools must originate from a live MCP tool response - nev
 - A create_page id is valid as parent_page_id only within the same uninterrupted sequence - re-resolve via list_pages or get_space_tree if any deletion has occurred since that creation
 - A 404 from any write tool means the given ID does not exist in live Docmost; use a read tool to resolve the correct ID and retry
 
+<<<<<<< Updated upstream
+=======
+Content formatting rules (applies to all page content passed to create_page and update_page):
+Do NOT use Unicode typographic characters in page content. These characters are not reliably rendered across all Docmost consumers and may appear as garbled text or question marks.
+Forbidden characters and their plain-text replacements:
+- em dash (-) -> use hyphen with surrounding spaces ( - ) or a plain hyphen (-)
+- en dash (-) -> use a plain hyphen (-)
+- right arrow (->) -> use the two-character sequence ->
+- double arrow (=>) -> use the two-character sequence =>
+- ellipsis (...) -> use three plain dots (...)
+- curly quotes (" " ' ') -> use straight quotes (" and ')
+When inline text separation is needed, use a plain hyphen (-) as the separator.
+
+>>>>>>> Stashed changes
 When syncing local -> remote:
 1. Match local replica files to remote pages via _meta.json.
 2. For edited files: call update_page with the new markdown content.
@@ -802,6 +816,18 @@ Use update_page to update an existing page's title and/or content.
 Use delete_page to soft-delete a page (it moves to Docmost trash).
 Use delete_space to permanently delete a space and all its contents.
 All content is markdown in and out. Never pass ProseMirror JSON to write tools.
+
+Content formatting rules (applies to all page content passed to create_page and update_page):
+Do NOT use Unicode typographic characters in page content. These characters are not reliably
+rendered across all Docmost consumers and may appear as garbled text or question marks.
+Forbidden characters and their plain-text replacements:
+  em dash (-)    -> use hyphen with surrounding spaces ( - ) or a plain hyphen (-)
+  en dash (-)    -> use a plain hyphen (-)
+  right arrow (->) -> use the two-character sequence ->
+  double arrow (=>) -> use the two-character sequence =>
+  ellipsis (...)  -> use three plain dots (...)
+  curly quotes (" " ' ') -> use straight quotes (" and ')
+When inline text separation is needed, use a plain hyphen (-) as the separator.
 
 All IDs passed to write tools (space_id, page_id, parent_page_id) must originate from a
 prior MCP tool response in the current session - never from memory, local files, or inference.

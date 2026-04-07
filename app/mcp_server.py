@@ -61,6 +61,18 @@ Use delete_page to soft-delete a page (it moves to Docmost trash).
 Use delete_space to permanently delete a space and all its contents.
 All content is markdown in and out. Never pass ProseMirror JSON to write tools.
 
+Content formatting rules (applies to all page content passed to create_page and update_page):
+Do NOT use Unicode typographic characters in page content. These characters are not reliably
+rendered across all Docmost consumers and may appear as garbled text or question marks.
+Forbidden characters and their plain-text replacements:
+  em dash (-)    -> use hyphen with surrounding spaces ( - ) or a plain hyphen (-)
+  en dash (-)    -> use a plain hyphen (-)
+  right arrow (->) -> use the two-character sequence ->
+  double arrow (=>) -> use the two-character sequence =>
+  ellipsis (...)  -> use three plain dots (...)
+  curly quotes (" " ' ') -> use straight quotes (" and ')
+When inline text separation is needed, use a plain hyphen (-) as the separator.
+
 All IDs passed to write tools (space_id, page_id, parent_page_id) must originate from a
 prior MCP tool response in the current session — never from memory, local files, or inference.
   - space_id: must come from list_spaces or create_space.
