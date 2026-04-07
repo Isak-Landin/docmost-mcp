@@ -61,6 +61,13 @@ Use delete_page to soft-delete a page (it moves to Docmost trash).
 Use delete_space to permanently delete a space and all its contents.
 All content is markdown in and out. Never pass ProseMirror JSON to write tools.
 
+All IDs passed to write tools (space_id, page_id, parent_page_id) must originate from a
+prior MCP tool response in the current session — never from memory, local files, or inference.
+  - space_id: must come from list_spaces or create_space.
+  - parent_page_id: must come from list_pages, get_space_tree, or a create_page response.
+A 404 from any write tool means the given ID does not exist in the live Docmost instance.
+Resolve by calling the appropriate read tool (list_spaces, list_pages) to obtain a valid ID.
+
 ## Replica management
 Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it.
 All local replica directory and file names must not contain spaces — replace with hyphens.
@@ -277,11 +284,18 @@ def create_page(
     Arbitrarily deep hierarchies are supported.
     Content is accepted as markdown. Authentication is handled automatically.
 
+    space_id must come from list_spaces or create_space — never inferred or invented.
+    parent_page_id must come from list_pages, get_space_tree, or a prior create_page response.
+    A prior create_page id is only valid as parent_page_id within the same uninterrupted
+    sequence — if any delete or space removal has occurred since that creation, resolve the
+    current valid id with list_pages or get_space_tree before using it.
+    A 404 response means the given space_id or parent_page_id does not exist in live Docmost.
+
     Args:
-        space_id: UUID of the target space.
+        space_id: UUID of the target space (from list_spaces or create_space).
         title: Page title (optional).
         content: Markdown content for the page body (optional).
-        parent_page_id: UUID of the parent page for a child page (optional, leave empty for root).
+        parent_page_id: UUID of the parent page (from list_pages, get_space_tree, or an uninterrupted prior create_page); leave empty for root.
     """
     try:
         data = docmost_create_page(
