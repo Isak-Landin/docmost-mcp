@@ -428,6 +428,12 @@ Use update_page to push local replica content changes to remote. Prefer update_p
 Use delete_page ONLY when the user has clearly confirmed a page should be removed, or when a local edit makes it unambiguous that the page no longer exists (e.g. the local file was deliberately deleted and the user agreed). Never delete speculatively.
 Use delete_space ONLY on explicit user instruction.
 
+All IDs passed to write tools must originate from a live MCP tool response — never from memory, local files, or inference:
+- space_id: from list_spaces or create_space
+- parent_page_id: from list_pages, get_space_tree, or a prior create_page response
+- A create_page id is valid as parent_page_id only within the same uninterrupted sequence — re-resolve via list_pages or get_space_tree if any deletion has occurred since that creation
+- A 404 from any write tool means the given ID does not exist in live Docmost; use a read tool to resolve the correct ID and retry
+
 When syncing local → remote:
 1. Match local replica files to remote pages via _meta.json.
 2. For edited files: call update_page with the new markdown content.
@@ -619,6 +625,12 @@ Before creating a page:
 - check whether the page already exists via `get_space_tree` or `list_pages`
 - derive the correct name with `get_replica_standards` and `resolve_replica_directory_name`
 - use `create_page` with `parent_page_id` to create nested child pages at any depth
+
+All IDs passed to write operations must originate from a live MCP tool response — never from memory, local files, or inference:
+- `space_id` must come from `list_spaces` or `create_space`
+- `parent_page_id` must come from `list_pages`, `get_space_tree`, or a prior `create_page` response
+- A `create_page` response id is valid as `parent_page_id` only within the same uninterrupted sequence — if any deletion or space removal has occurred since that creation, re-resolve with `list_pages` or `get_space_tree` first
+- A **404** from any write tool means the given ID does not exist in the live Docmost instance; resolve the correct ID via a read tool and retry
 
 When updating existing pages:
 - prefer `update_page` over delete+create — Docmost preserves full page history on update
