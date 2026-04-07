@@ -4,6 +4,9 @@ venv/
 test_file.py
 test_query.py
 
+# Wiki — local draft only, copy to GitHub wiki manually
+wiki/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
