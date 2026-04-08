@@ -14,4 +14,4 @@ Returns `{"ok": true}` when the service process is running and reachable.
 
 ### Implementation
 
-`app/routers/health.py` — returns a `JSONResponse` directly, no database call, no model validation.
+`app/query/routers/health.py` — returns a `JSONResponse` directly, no database call, no model validation.

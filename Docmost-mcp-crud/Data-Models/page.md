@@ -46,7 +46,27 @@ Returned by `list_pages`, `get_page`.
 | `space_id` | UUID | Space this page belongs to |
 | `workspace_id` | UUID | Parent workspace UUID |
 | `is_locked` | bool | Whether page is locked for editing |
-| `text_content` | str? | Normalized plain-text content |
+| `content` | str? | Page content as markdown |
+| `created_at` | datetime | |
+| `updated_at` | datetime | |
+
+## PageMetaOut
+
+Returned by write routes (`create_page`, `update_page`). Same fields as `PageOut` but without `content` - content is not echoed back on write operations.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Page UUID |
+| `slug_id` | str | Short URL-friendly identifier |
+| `title` | str? | Page title |
+| `icon` | str? | Emoji or icon identifier |
+| `position` | str? | Sort position within parent |
+| `parent_page_id` | UUID? | Parent page UUID |
+| `creator_id` | UUID? | UUID of creating user |
+| `last_updated_by_id` | UUID? | UUID of last updating user |
+| `space_id` | UUID | Space this page belongs to |
+| `workspace_id` | UUID | Parent workspace UUID |
+| `is_locked` | bool | Whether page is locked for editing |
 | `created_at` | datetime | |
 | `updated_at` | datetime | |
 

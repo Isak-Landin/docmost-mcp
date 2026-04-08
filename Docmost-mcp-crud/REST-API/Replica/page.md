@@ -63,4 +63,4 @@ Use this instead of guessing how remote Docmost pages should be represented loca
 
 ### Implementation
 
-`app/replica.get_replica_structure()` calls `get_space_tree()` then walks the tree recursively, resolving directory names level-by-level using the collision logic above.
+`app/query/replica.get_replica_structure()` calls `get_space_tree()` then walks the tree recursively, resolving directory names level-by-level using the collision logic above.

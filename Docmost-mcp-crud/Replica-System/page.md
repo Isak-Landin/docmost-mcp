@@ -1,10 +1,10 @@
 # Replica System
 
-The replica system generates a deterministic local file layout for any Docmost space. It is implemented in `app/replica.py`.
+The replica system generates a deterministic local file layout for any Docmost space. It is implemented in `app/query/replica.py`.
 
 ## Purpose
 
-Because the Docmost MCP server is read-only, the recommended usage pattern involves maintaining a **local replica** — a directory tree that mirrors remote Docmost pages as local files. The replica system standardizes how this tree is laid out so all clients agree on paths.
+The recommended usage pattern involves maintaining a **local replica** - a directory tree that mirrors remote Docmost pages as local files. The replica system standardizes how this tree is laid out so all clients agree on paths.
 
 ## Replica root
 
@@ -73,6 +73,6 @@ Applied level-by-level, not globally:
 
 ## Implementation notes
 
-- `_resolve_level_directory_names()` in `replica.py` resolves names for a full sibling group before assigning any, so collision detection is consistent
+- `_resolve_level_directory_names()` in `app/query/replica.py` resolves names for a full sibling group before assigning any, so collision detection is consistent
 - The recursive `_build_replica_level()` walks the `PageTreeNode` tree from `get_space_tree()` and builds `ReplicaTreeNode` objects
 - No I/O is performed; the structure is returned as a Pydantic model and it is the client's responsibility to write files

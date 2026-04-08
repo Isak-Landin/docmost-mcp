@@ -21,7 +21,7 @@ Source is available at: https://github.com/Isak-Landin/docmost-mcp-api
 
 - REST API for Docmost: spaces, pages, children, create, update, delete
 - MCP server exposing all REST operations as callable tools
-- Markdown in, markdown out - all page content converted via Docmost collab API
+- Markdown in, metadata out - write responses return page identity and metadata; content is not echoed back
 - Auth handled transparently on every request
 - Fully environment-driven - no hardcoded values
 - Docker Compose setup with shared external network support
@@ -34,6 +34,5 @@ Context window usage is high per session when used through an AI coding assistan
 
 ### Limitations
 
-- No pagination on list endpoints
-- `update_page` response may reflect pre-update content due to collab gateway flush lag
+- `update_page` write confirmation does not include content - the response returns metadata only. Use `get_page` if content verification is needed after an update.
 - Space slugs must be alphanumeric, no dashes or spaces (Docmost constraint)

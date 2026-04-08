@@ -3,10 +3,5 @@
   "space_name": "Docmost-MCP-Service",
   "space_slug": "docmostmcpservice",
   "replica_root": "./Docmost-mcp-crud",
-<<<<<<< Updated upstream
-  "source": "remote-synced",
-  "note": "Fully recreated remote space from local replica. All pages synced with content. Remote Docmost must be updated to v0.71.1+ for content writes to work."
-=======
   "source": "remote-synced"
->>>>>>> Stashed changes
 }

@@ -1,22 +1,22 @@
 # Overview
 
-**Docmost MCP** is a read-only service that connects directly to a live Docmost PostgreSQL database and exposes that content through two surfaces:
+**Docmost MCP** is a service that connects to a live Docmost instance and exposes read and write access to spaces and pages through two surfaces:
 
 - A **REST API** for conventional HTTP access
-- A **remote MCP endpoint** for GitHub Copilot CLI and other MCP clients
+- A **remote MCP endpoint** for GitHub Copilot CLI and other MCP-compatible clients
 
 ## Purpose
 
-The service bridges a running Docmost instance and AI tooling (Copilot CLI). It lets an AI assistant query documentation from Docmost without requiring write access or any modification to Docmost itself.
+The service bridges a running Docmost instance and AI tooling. It is primarily designed for use with GitHub Copilot CLI, and is compatible with any MCP client that supports the Streamable HTTP transport. It lets an AI assistant read, create, and update documentation in Docmost without requiring any modification to Docmost itself.
 
 It is designed to run as a container on the same server and Docker network as the live Docmost stack, while being reachable from a separate machine running Copilot CLI.
 
 ## Key characteristics
 
-- **Strictly read-only (via MCP)** — MCP tools expose no create, update, move, or delete operations
-- **Write-capable via REST** — the service exposes write routes (`POST /spaces/{id}/pages`, etc.) that pass through to the Docmost REST API; requires Docmost **v0.71.1 or later** (see [Deployment](../Deployment/page.md))
+- **Read and write via MCP** — MCP tools cover list, get, create, update, and delete for both spaces and pages
+- **Read and write via REST** — the same operations are available as standard HTTP routes; write routes pass through to the Docmost REST API and require Docmost **v0.71.1 or later** (see [Deployment](../Deployment/page.md))
 - **Space-scoped** — pages are always queried within a space; there is no global page lookup
-- **Normalized text** — `text_content` returned by the API has repeated newline runs and `+` storage noise collapsed before delivery
+- **Markdown in, metadata out** — page content is accepted as markdown on write; write responses return page metadata only, not the written content
 - **Explicit not-found errors** — if data does not exist the service returns a clear error; it never invents structure
 - **Replica-aware** — exposes tools and routes to generate and manage a local documentation replica so AI clients can maintain a local editable copy of remote docs
 

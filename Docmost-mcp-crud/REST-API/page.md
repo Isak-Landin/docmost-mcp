@@ -1,25 +1,39 @@
 # REST API
 
-The REST API is served by FastAPI at the root of the service. All routes are read-only.
+The REST API is served by FastAPI at the root of the service.
 
 ## Route summary
 
+### Read routes
+
 | Method | Path | Router module | Description |
 |---|---|---|---|
-| `GET` | `/health` | `routers/health.py` | Process health check |
-| `GET` | `/spaces` | `routers/spaces.py` | List all non-deleted spaces |
-| `GET` | `/spaces/{space_id}` | `routers/spaces.py` | Get one space |
-| `GET` | `/spaces/{space_id}/tree` | `routers/spaces.py` | Get nested page tree for a space |
-| `GET` | `/spaces/{space_id}/pages` | `routers/pages.py` | List all pages in a space |
-| `GET` | `/spaces/{space_id}/pages/{page_id}` | `routers/pages.py` | Get one page in its space |
-| `GET` | `/spaces/{space_id}/replica-structure` | `routers/replica.py` | Get deterministic local replica layout for a space |
-| `GET` | `/replica/standards` | `routers/replica.py` | Get local replica naming, structure, and sync rules |
-| `GET` | `/replica/resolve-directory-name` | `routers/replica.py` | Resolve local directory name for a page title |
+| `GET` | `/health` | `app/query/routers/health.py` | Process health check |
+| `GET` | `/spaces` | `app/query/routers/spaces.py` | List all non-deleted spaces |
+| `GET` | `/spaces/{space_id}` | `app/query/routers/spaces.py` | Get one space |
+| `GET` | `/spaces/{space_id}/tree` | `app/query/routers/spaces.py` | Get nested page tree for a space |
+| `GET` | `/spaces/{space_id}/pages` | `app/query/routers/pages.py` | List all pages in a space |
+| `GET` | `/spaces/{space_id}/pages/{page_id}` | `app/query/routers/pages.py` | Get one page in its space |
+| `GET` | `/spaces/{space_id}/replica-structure` | `app/query/routers/replica.py` | Get deterministic local replica layout for a space |
+| `GET` | `/replica/standards` | `app/query/routers/replica.py` | Get local replica naming, structure, and sync rules |
+| `GET` | `/replica/resolve-directory-name` | `app/query/routers/replica.py` | Resolve local directory name for a page title |
+
+### Write routes
+
+| Method | Path | Router module | Description |
+|---|---|---|---|
+| `POST` | `/spaces` | `app/write/routers/spaces.py` | Create a new space |
+| `DELETE` | `/spaces/{space_id}` | `app/write/routers/spaces.py` | Permanently delete a space |
+| `POST` | `/spaces/{space_id}/pages` | `app/write/routers/pages.py` | Create a new page |
+| `PUT` | `/spaces/{space_id}/pages/{page_id}` | `app/write/routers/pages.py` | Update page title and/or content |
+| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | `app/write/routers/pages.py` | Soft-delete a page |
 
 ## Shared HTTP error codes
 
 | Code | Meaning |
 |---|---|
+| `400` | Validation error or Docmost rejected the request |
+| `401` | Docmost credentials invalid |
 | `404` | Space or page not found (deleted or never existed) |
 | `503` | Docmost database connection failed |
 

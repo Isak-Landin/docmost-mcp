@@ -4,7 +4,7 @@ Docmost MCP is a service that connects directly to a live Docmost PostgreSQL
 database and exposes that content through:
 
 - a REST API for conventional HTTP read and write access
-- a remote MCP endpoint for GitHub Copilot CLI and other MCP clients
+- a remote MCP endpoint for GitHub Copilot CLI and other MCP-compatible clients
 
 It is designed to run as a container on the same server and Docker network as the
 live Docmost stack, while being reachable from a separate machine running Copilot CLI.
@@ -324,7 +324,7 @@ machine does **not** need any local wrapper script for Docmost MCP.
 Copilot CLI only needs a configured MCP server pointing at the remote URL.
 
 Copilot CLI already includes the GitHub MCP server by default. Docmost MCP is an
-additional remote MCP server you add to extend Copilot CLI with Docmost read access.
+additional remote MCP server you add to extend Copilot CLI with Docmost access.
 
 Configured MCP server details are saved per Copilot config home. The clean
 Docmost-only setup is therefore to use a dedicated:
@@ -675,7 +675,7 @@ This service exposes:
 
 Write routes authenticate against Docmost automatically using `DOCMOST_APP_URL`, `DOCMOST_USER_EMAIL`, and `DOCMOST_USER_PASSWORD` from `.env`. No auth call is needed before any write request.
 
-All content accepted and returned by write routes is **markdown**.
+All content accepted by write routes is **markdown**. Write routes do not echo content back - they return page identity and metadata only. Use `GET /spaces/{space_id}/pages/{page_id}` to read content back if needed.
 
 Use `operation: replace | append | prepend` on the update endpoint to control how content is applied. Default is `replace`.
 ## Exposed MCP tools
@@ -895,7 +895,7 @@ Columns exposed: `id`, `name`, `description`, `slug`, `visibility`, `default_rol
 
 Columns exposed: `id`, `slug_id`, `title`, `icon`, `position`, `parent_page_id`,
 `creator_id`, `last_updated_by_id`, `space_id`, `workspace_id`, `is_locked`,
-`text_content`, `created_at`, `updated_at`.
+`content`, `created_at`, `updated_at`.
 
 Deleted Docmost rows are excluded by checking `deleted_at IS NULL`.
 

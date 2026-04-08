@@ -6,8 +6,6 @@ All page routes are scoped to a space. You must provide the `space_id` UUID.
 
 Returns all non-deleted pages belonging to the given space, ordered by creation date.
 
-`text_content` is returned normalized: repeated newline runs and repeated `+` storage noise are collapsed.
-
 ### Path parameters
 
 | Parameter | Type | Description |
@@ -27,7 +25,7 @@ Returns all non-deleted pages belonging to the given space, ordered by creation 
 
 ## `GET /spaces/{space_id}/pages/{page_id}`
 
-Returns a single page by UUID, scoped to the given space.
+Returns a single page by UUID, scoped to the given space. Content is returned as markdown.
 
 Returns `404` if the page does not exist, is deleted, or belongs to a different space.
 
@@ -49,11 +47,83 @@ Returns `404` if the page does not exist, is deleted, or belongs to a different 
 
 ---
 
-## `text_content` normalization
+## `POST /spaces/{space_id}/pages`
 
-The raw `text_content` stored in Docmost contains storage artefacts:
-- Runs of 3 or more `+` characters are collapsed to a single `+`
-- Runs of 2 or more newlines are collapsed to a single newline
-- Leading and trailing whitespace is stripped
+Creates a new page in the given space. Provide `parent_page_id` to create a child page nested under an existing page. Content is accepted as markdown. Authentication is handled transparently.
 
-Applied by `app/text_utils.reformat_text()` before the `PageOut` model is constructed.
+### Path parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `space_id` | UUID | Space UUID |
+
+### Request body: `PageCreateIn`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | no | Page title |
+| `content` | string | no | Markdown content |
+| `parent_page_id` | UUID | no | Parent page UUID for nesting |
+
+### Response model: `PageMetaOut` (metadata only, content not echoed)
+
+### Errors
+
+| Code | Reason |
+|---|---|
+| `400` | Validation error or Docmost rejected the request |
+| `401` | Docmost credentials invalid |
+| `404` | Space or parent page not found |
+
+---
+
+## `PUT /spaces/{space_id}/pages/{page_id}`
+
+Updates an existing page's title and/or content. Prefer this over delete+create to preserve Docmost page history.
+
+### Path parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `space_id` | UUID | Space UUID |
+| `page_id` | UUID | Page UUID |
+
+### Request body: `PageUpdateIn`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | no | New title (omit to leave unchanged) |
+| `content` | string | no | Markdown content |
+| `operation` | string | no | `replace` (default), `append`, or `prepend` |
+
+### Response model: `PageMetaOut` (metadata only, content not echoed)
+
+### Errors
+
+| Code | Reason |
+|---|---|
+| `400` | Validation error or Docmost rejected the request |
+| `401` | Docmost credentials invalid |
+| `404` | Page not found |
+
+---
+
+## `DELETE /spaces/{space_id}/pages/{page_id}`
+
+Soft-deletes a page (moves it to Docmost trash). Authentication is handled transparently.
+
+### Path parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `space_id` | UUID | Space UUID |
+| `page_id` | UUID | Page UUID |
+
+### Response model: `DeletedOut`
+
+### Errors
+
+| Code | Reason |
+|---|---|
+| `401` | Docmost credentials invalid |
+| `404` | Page not found |

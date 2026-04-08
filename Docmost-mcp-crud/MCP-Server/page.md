@@ -22,7 +22,7 @@ Controlled by the `MCP_ALLOWED_HOSTS` environment variable.
 
 ## Exposed tools
 
-All tools are read-only. They delegate to the same functions used by the REST routers.
+### Read tools
 
 | Tool | Input | Description |
 |---|---|---|
@@ -34,6 +34,18 @@ All tools are read-only. They delegate to the same functions used by the REST ro
 | `get_replica_structure` | `space_id: UUID` | Get the deterministic local replica layout for a space |
 | `list_pages` | `space_id: UUID` | List all pages in a space |
 | `get_page` | `space_id: UUID`, `page_id: UUID` | Get one page by UUID within its space |
+
+### Write tools
+
+| Tool | Input | Description |
+|---|---|---|
+| `create_space` | `name`, `slug`, `description?` | Create a new Docmost space |
+| `delete_space` | `space_id` | Permanently delete a space and all its pages |
+| `create_page` | `space_id`, `title?`, `content?`, `parent_page_id?` | Create a new page; content is markdown |
+| `update_page` | `page_id`, `title?`, `content?`, `operation?` | Update title and/or content; operation: replace, append, prepend |
+| `delete_page` | `page_id` | Soft-delete a page (moves to Docmost trash) |
+
+Write tools authenticate automatically via `DOCMOST_USER_EMAIL` and `DOCMOST_USER_PASSWORD`. Write responses return page metadata only - content is not echoed back.
 
 ## Error handling
 
@@ -47,11 +59,11 @@ All tools are read-only. They delegate to the same functions used by the REST ro
 
 The `FastMCP` instance includes a `SERVER_INSTRUCTIONS` string that guides MCP clients on how to use the server. Key rules published:
 
-- This server is strictly read-only
 - Start with `list_spaces` when you need to identify the correct space
 - Use `get_space_tree` for the full nested hierarchy
 - Use `get_replica_structure` for the deterministic local replica layout
 - Pages are always space-scoped
-- Treat `text_content` as normalized plain text
+- All write tool IDs must originate from live tool responses - never inferred or invented
+- Prefer `update_page` over delete+create to preserve Docmost page history
 - If local replica changes exist, treat the local replica as the working source of truth
 - After local-only edits, remote Docmost may be stale until the user manually syncs back

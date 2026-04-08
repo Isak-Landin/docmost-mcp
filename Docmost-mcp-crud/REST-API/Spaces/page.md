@@ -52,9 +52,9 @@ Use this when you need to understand documentation structure without reconstruct
 ### Response model: `SpaceTreeOut`
 
 The response contains:
-- `space` — `SpaceSummaryOut` (id, name, slug)
-- `root_pages` — top-level pages, each with fully nested `children`
-- `orphan_pages` — pages whose parent is missing or otherwise unreachable
+- `space` - `SpaceSummaryOut` (id, name, slug)
+- `root_pages` - top-level pages, each with fully nested `children`
+- `orphan_pages` - pages whose parent is missing or otherwise unreachable
 
 ### Tree construction rules
 
@@ -72,4 +72,48 @@ The response contains:
 
 ### Implementation
 
-`app/docmost.get_space_tree()` builds the tree in-memory after fetching all page rows for the space in a single SQL query.
+`app/query/docmost.get_space_tree()` builds the tree in-memory after fetching all page rows for the space in a single SQL query.
+
+---
+
+## `POST /spaces`
+
+Creates a new Docmost space. Authentication is handled transparently.
+
+### Request body: `SpaceCreateIn`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Display name (2-100 characters) |
+| `slug` | string | yes | Alphanumeric URL identifier, no spaces or dashes (2-100 chars) |
+| `description` | string | no | Optional plain-text description |
+
+### Response model: `SpaceOut`
+
+### Errors
+
+| Code | Reason |
+|---|---|
+| `400` | Validation error or slug/name already taken |
+| `401` | Docmost credentials invalid |
+
+---
+
+## `DELETE /spaces/{space_id}`
+
+Permanently deletes a space and all its pages. This is irreversible. Authentication is handled transparently.
+
+### Path parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `space_id` | UUID | Space UUID |
+
+### Response model: `DeletedOut`
+
+### Errors
+
+| Code | Reason |
+|---|---|
+| `401` | Docmost credentials invalid |
+| `404` | Space not found |
