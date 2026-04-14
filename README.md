@@ -131,16 +131,25 @@ Then continue from [step 2](#2-confirm-the-shared-docker-network-name) below. Sk
 
 ### Option B: from source
 
-Clone or copy the repository onto the same server that hosts the live Docmost deployment.
-
-Example placeholder path:
+Create the target directory on the same server that hosts the live Docmost deployment:
 
 ```bash
 mkdir -p /opt/docmost-mcp
+```
+
+Then either clone the repository into that directory:
+
+```bash
+git clone https://github.com/Isak-Landin/docmost-mcp-server.git /opt/docmost-mcp
 cd /opt/docmost-mcp
 ```
 
-Place the project files there.
+Or copy an existing local checkout into place:
+
+```bash
+cp -a /path/to/docmost-mcp-server/. /opt/docmost-mcp/
+cd /opt/docmost-mcp
+```
 
 ### 2. Confirm the shared Docker network name
 
@@ -360,23 +369,24 @@ Copilot CLI only needs a configured MCP server pointing at the remote URL.
 Copilot CLI already includes the GitHub MCP server by default. Docmost MCP is an
 additional remote MCP server you add to extend Copilot CLI with Docmost access.
 
-Configured MCP server details are saved per Copilot config home. The clean
-Docmost-only setup is therefore to use a dedicated:
+Configured MCP server details are saved per Copilot config home. Create a
+dedicated Docmost-only home first:
 
-```text
-COPILOT_HOME=~/.copilot-docmost
+```bash
+mkdir -p "$HOME/copilot-docmost"
+export COPILOT_HOME="$HOME/copilot-docmost"
 ```
 
-That keeps Docmost MCP configuration and Docmost-specific instructions out of your
-normal default Copilot home.
+That keeps Docmost MCP configuration and Docmost-specific instructions out of
+your normal default Copilot home.
 
 ### Recommended layout
 
 Use these two files inside the dedicated Docmost home:
 
 ```text
-~/.copilot-docmost/mcp-config.json
-~/.copilot-docmost/copilot-instructions.md
+$HOME/copilot-docmost/mcp-config.json
+$HOME/copilot-docmost/copilot-instructions.md
 ```
 
 Keep your normal:
@@ -391,7 +401,8 @@ instructions file, or it will clash with unrelated work.
 ### Recommended start command
 
 ```bash
-export COPILOT_HOME="$HOME/.copilot-docmost"
+mkdir -p "$HOME/copilot-docmost"
+export COPILOT_HOME="$HOME/copilot-docmost"
 copilot
 ```
 
@@ -574,7 +585,7 @@ deliberately want to manage instruction precedence yourself.
 
 With the dedicated Docmost home configured this way:
 
-- Docmost MCP is available only when you start Copilot with `COPILOT_HOME="$HOME/.copilot-docmost"`
+- Docmost MCP is available only when you start Copilot with `COPILOT_HOME="$HOME/copilot-docmost"`
 - the Docmost-specific instructions live alongside the Docmost MCP config
 - your default global Copilot instructions stay free of Docmost-specific assumptions
 - the consumer is explicitly told to:
