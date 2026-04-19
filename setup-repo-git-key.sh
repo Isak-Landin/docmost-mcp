@@ -173,6 +173,16 @@ ensure_bash_hook() {
   fi
 }
 
+ensure_line_in_file() {
+  local file_path="$1"
+  local line="$2"
+
+  touch "$file_path"
+  if ! grep -Fqx "$line" "$file_path"; then
+    printf '%s\n' "$line" >> "$file_path"
+  fi
+}
+
 verify_direnv_load() {
   local repo_root="$1"
   local expected_ssh_command="$2"
@@ -234,6 +244,8 @@ repo_owner_spec="$(get_path_owner_spec "$repo_root")"
 target_user_owner_spec="$(get_user_owner_spec "$target_user")"
 envrc_path="$repo_root/.envrc"
 exclude_path="$repo_root/.git/info/exclude"
+root_gitignore_path="$repo_root/.gitignore"
+script_name="$(basename "$script_path")"
 
 begin_marker="# >>> git-ssh-key-direnv >>>"
 end_marker="# <<< git-ssh-key-direnv <<<"
@@ -267,11 +279,13 @@ fi
 mv "$tmp_file" "$envrc_path"
 ensure_path_owner_and_mode "$envrc_path" "$repo_owner_spec" 664
 
-touch "$exclude_path"
-if ! grep -Fqx '.envrc' "$exclude_path"; then
-  printf '%s\n' '.envrc' >> "$exclude_path"
-fi
+ensure_line_in_file "$exclude_path" '.envrc'
 ensure_path_owner_and_mode "$exclude_path" "$repo_owner_spec" 664
+
+if [[ "$runtime_cwd" == "$repo_root" && "$script_dir" == "$repo_root" ]]; then
+  ensure_line_in_file "$root_gitignore_path" "$script_name"
+  ensure_path_owner_and_mode "$root_gitignore_path" "$repo_owner_spec" 664
+fi
 
 printf 'Configured repo: %s\n' "$repo_root"
 printf 'SSH key: %s\n' "$key_path"
