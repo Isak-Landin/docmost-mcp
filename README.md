@@ -494,34 +494,42 @@ It is essential that all following rules are followed.
 
 Clarification. Internal documentation is not docs that exist in the repository you have access to. It is the copilot internal documentation for a session.
 
-- Always read internal documentation before attempting to answer or take action.
+- Always read internal documentation before attempting to answer or take action if action is not external documentation aimed.
 - Always update internal documentation when new insight is established which does not match the current internal documentation.
 - Always update internal documentation determined that previously mentioned additions, edits and deletes were accepted and not reflected in internal documentation.
 - Don't Update documentation, project or internal, until change is implemented.
-- Don't update project documentation unless asked for.
+- Don't update project docmost documentation unless asked for.
 - Mention deprecated project documentation when noticed to be deprecated.
 - Keep ownership boundaries strict.
-- Do not push persistence into bootstrap.
 - Prefer simple return contracts.
-- Don't expect existence of code representation unless explicitly existing is mentioned or can be assumed.
+- Don't expect existence of code or non-existence of code when asked or derived addition or creation of code conclusion.
+- Always verify that other code, module or package does not exist as owner of wanted implementation. Since we never want to duplicate codebase responsibilities.
+- Only make additions or creations when required to keep project codebase integrity or required as a result of avoidance to mix ownership.
 - Don't guess or invent new rules or module ownerships.
+
+## Repo and runtime workflow
+
+- Always make repository changes locally. Never make source changes directly on a remote host.
+- Treat hosted runtime environments as remote. Do not host the project locally.
+- Use remote logs and remote runtime behavior to debug deployed issues, then implement the fix locally in the repo.
+- Do not use remote edits as a substitute for local implementation. Remote environments are for observation, logs, validation, and deployment state, not source authoring.
 
 ## Docmost MCP - reading
 
-Use the docmost-mcp MCP server as the primary long-term documentation source for the active project.
+Use the docmost-mcp MCP server as the primary long-term documentation source when the task is about Docmost-backed project documentation or the user directs work through Docmost.
 Remote Docmost pages are the authoritative long-term representation of the project - deprecation is not the default assumption.
 Only treat a page as stale or outdated when there is a clear, verified conflict with current code or runtime behavior, not merely because a local replica was edited.
 
-If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context in the prompt, consult docmost-mcp before guessing.
-Internal session documentation and Docmost documentation are complementary - use both. Neither replaces the other.
-Always resolve the correct space first with list_spaces, then inspect pages within that space.
+If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context and Docmost is part of the task, consult docmost-mcp before guessing.
+Internal session documentation and Docmost documentation are complementary - use both when Docmost is in scope. Neither replaces the other.
+When using docmost-mcp, always resolve the correct space first with list_spaces, then inspect pages within that space.
 Pages are space-scoped and are not global lookups.
 Use get_space_tree when you need the nested structure of a space.
 Use list_pages for a flat listing. Use get_page for a single page with full markdown content.
 
 ## Local replica management
 
-Maintain or create a local replica at `./{space_name}-replica/` when the client workflow requires it.
+Maintain or create a local replica at `./{space_name}-replica/` when the user asks for Docmost/local replica work or the client workflow clearly requires it.
 No spaces are allowed in any local replica directory or file name. Replace spaces with hyphens in all local paths (e.g. "Local LLM Helper" -> `Local-LLM-Helper-replica`).
 Use get_replica_structure for the exact local replica layout of an existing space and for initial replica creation.
 Use get_replica_standards and resolve_replica_directory_name to derive correct directory names for new local-only pages.
@@ -550,8 +558,6 @@ All IDs passed to write tools must originate from a live MCP tool response - nev
 - A create_page id is valid as parent_page_id only within the same uninterrupted sequence - re-resolve via list_pages or get_space_tree if any deletion has occurred since that creation
 - A 404 from any write tool means the given ID does not exist in live Docmost; use a read tool to resolve the correct ID and retry
 
-<<<<<<< Updated upstream
-=======
 Content formatting rules (applies to all page content passed to create_page and update_page):
 Do NOT use Unicode typographic characters in page content. These characters are not reliably rendered across all Docmost consumers and may appear as garbled text or question marks.
 Forbidden characters and their plain-text replacements:
@@ -562,8 +568,6 @@ Forbidden characters and their plain-text replacements:
 - ellipsis (...) -> use three plain dots (...)
 - curly quotes (" " ' ') -> use straight quotes (" and ')
 When inline text separation is needed, use a plain hyphen (-) as the separator.
-
->>>>>>> Stashed changes
 When syncing local -> remote:
 1. Match local replica files to remote pages via _meta.json.
 2. For edited files: call update_page with the new markdown content.
